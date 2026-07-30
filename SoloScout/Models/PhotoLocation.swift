@@ -43,6 +43,7 @@ public final class PhotoLocation {
         self.descriptionNotes = ""
         self.creationDate = Date()
         self.category = category
+        self.difficulty = "Easy"
         self.latitude = latitude
         self.longitude = longitude
         self.hasParking = false
