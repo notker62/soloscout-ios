@@ -81,7 +81,7 @@ public final class PhotoService {
             // Map focal length to Full Frame Equivalent
             var focalLengthEquivalent: Int? = nil
             if let focalLength = focalLength {
-                if let exifFocal35 = exif?[kCGImagePropertyExifFocalLengthIn35mmFilm] as? Int {
+                if let exifFocal35 = exif?[kCGImagePropertyExifFocalLenIn35mmFilm] as? Int {
                     focalLengthEquivalent = exifFocal35
                 } else {
                     // Fallback heuristics based on focal length values
@@ -102,7 +102,6 @@ public final class PhotoService {
     }
     
     func calculateFocalLengthEquivalent(focalLength: Double, lensModel: String?) -> Int {
-        let model = lensModel?.lowercased() ?? ""
         if focalLength < 2.0 {
             return 13 // Ultra-wide
         } else if focalLength < 6.0 {
