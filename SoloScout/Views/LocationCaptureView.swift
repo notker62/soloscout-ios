@@ -68,6 +68,11 @@ struct LocationCaptureView: View {
     
     @State private var customCategories: [String] = []
     
+    // Category deletion states
+    @State private var categoryToDelete: String? = nil
+    @State private var isShowingDeleteCategoryAlert = false
+    @State private var locationsUsingCategoryCount = 0
+    
     var availableCategories: [String] {
         let defaultCats = ["Natur", "Architektur", "Street", "Abstrakt"]
         let dbCats = locations.flatMap { $0.categories }
@@ -183,6 +188,8 @@ struct LocationCaptureView: View {
                 Section("Allgemein") {
                     TextField("Titel des Fotospots", text: $title)
                         .focused($isInputActive)
+                        .autocorrectionDisabled(true)
+                        .textInputAutocapitalization(.words)
                 }
                 
                 // Section 4: Multiple Categories Checklist + Add Custom Category
@@ -191,6 +198,18 @@ struct LocationCaptureView: View {
                         HStack {
                             Text(cat)
                             Spacer()
+                            
+                            if !["Natur", "Architektur", "Street", "Abstrakt"].contains(cat) {
+                                Button {
+                                    deleteCategoryPrompt(cat)
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .foregroundStyle(.red)
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.trailing, 8)
+                            }
+                            
                             if selectedCategories.contains(cat) {
                                 Image(systemName: "checkmark")
                                     .foregroundStyle(.blue)
@@ -209,6 +228,8 @@ struct LocationCaptureView: View {
                     HStack {
                         TextField("Eigene Kategorie hinzufügen", text: $newCategoryName)
                             .focused($isInputActive)
+                            .autocorrectionDisabled(true)
+                            .textInputAutocapitalization(.never)
                         Button {
                             let trimmed = newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines)
                             if !trimmed.isEmpty && !availableCategories.contains(trimmed) {
@@ -316,6 +337,8 @@ struct LocationCaptureView: View {
                     HStack {
                         TextField("Eigene Ausrüstung hinzufügen", text: $newGearName)
                             .focused($isInputActive)
+                            .autocorrectionDisabled(true)
+                            .textInputAutocapitalization(.never)
                         Button {
                             let trimmed = newGearName.trimmingCharacters(in: .whitespacesAndNewlines)
                             if !trimmed.isEmpty && !availableGear.contains(trimmed) {
@@ -336,6 +359,8 @@ struct LocationCaptureView: View {
                     TextEditor(text: $notes)
                         .frame(minHeight: 100)
                         .focused($isInputActive)
+                        .autocorrectionDisabled(true)
+                        .textInputAutocapitalization(.sentences)
                 }
             }
             .navigationTitle("Fotospot anlegen")
@@ -425,6 +450,18 @@ struct LocationCaptureView: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(alertMessage)
+            }
+            .alert("Kategorie löschen", isPresented: $isShowingDeleteCategoryAlert, presenting: categoryToDelete) { cat in
+                Button("Abbrechen", role: .cancel) { }
+                Button("Löschen", role: .destructive) {
+                    performCategoryDeletion(cat)
+                }
+            } message: { cat in
+                if locationsUsingCategoryCount > 0 {
+                    Text("Die Kategorie „\(cat)“ wird von \(locationsUsingCategoryCount) Spot(s) verwendet. Wenn du sie löschst, wird sie von all diesen Spots entfernt.")
+                } else {
+                    Text("Möchtest du die Kategorie „\(cat)“ wirklich löschen?")
+                }
             }
             // Map picker sheets
             .sheet(isPresented: $isShowingMapPicker) {
@@ -552,6 +589,25 @@ struct LocationCaptureView: View {
                 }
             })
         }
+    }
+    
+    private func deleteCategoryPrompt(_ cat: String) {
+        let count = locations.filter { $0.categories.contains(cat) }.count
+        self.categoryToDelete = cat
+        self.locationsUsingCategoryCount = count
+        self.isShowingDeleteCategoryAlert = true
+    }
+    
+    private func performCategoryDeletion(_ cat: String) {
+        selectedCategories.removeAll { $0 == cat }
+        customCategories.removeAll { $0 == cat }
+        
+        for loc in locations {
+            if loc.categories.contains(cat) {
+                loc.categories.removeAll { $0 == cat }
+            }
+        }
+        try? modelContext.save()
     }
 }
 

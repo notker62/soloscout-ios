@@ -11,12 +11,17 @@ Jeder Anwendungsfall ist direkt mit Akzeptanzkriterien und konkreten Prüfmethod
 
 ---
 
-## 2. System-Fotomediathek-Integration & Berechtigungs-Grenzwerte
+## 2. System-Fotomediathek-Integration & Tastatur-Eingabekonventionen
 
+### 2.1 Anbindung System-Fotomediathek
 Die Anbindung der iOS-Fotomediathek unterliegt den strikten Sicherheitsrichtlinien von Apple (iOS Sandbox):
 *   **Feste System-Fotomediathek:** Unter iOS gibt es systemweit genau eine aktive *System-Fotomediathek* (konfiguriert in der iOS-Einstellungen-App unter *Fotos*). Apps können keine benutzerdefinierten `.photoslibrary`-Dateipfade auf dem Gerät wählen. Die App greift automatisch immer auf diese primäre Mediathek zu.
 *   **Out-of-Process PhotosPicker:** Die App nutzt Apples nativen `PhotosPicker` (`PhotosUI`). Dieser läuft in einem isolierten Systemprozess. Der Benutzer wählt darin Bilder aus seiner System-Fotomediathek aus.
 *   **Berechtigungskonzept:** Da der Picker außerhalb der App läuft, muss der Benutzer der App keinen globalen Vollzugriff auf seine gesamte Fotomediathek gewähren. Die App erhält nach der Auswahl einen sicheren Datenstrom (`loadTransferable`) des ausgewählten Bildes. Dies gewährleistet maximale Datensicherheit und reibungslose Funktion auch bei restriktiven Rechteeinstellungen.
+
+### 2.2 Tastatur-Eingaben (Keine Autokorrektur / Autocomplete)
+*   **Keine Wortvorschläge (No Autocomplete):** Alle Eingabefelder für Text (Titel des Fotospots, eigene Kategorien, eigene Ausrüstungsteile und Notizen) sind ohne Autokorrektur (`.autocorrectionDisabled(true)`) und ohne automatische Rechtschreibkorrektur-Vorschläge implementiert.
+*   **Manuelle Volleingabe:** Fotografische Fachbegriffe, Marken- und Modellnamen oder persönliche Kürzel müssen vom Nutzer vollkommen manuell eingetippt und nicht vom iOS-System eigenmächtig abgeändert oder vorgeschlagen werden.
 
 ---
 
@@ -122,16 +127,20 @@ Die Anbindung der iOS-Fotomediathek unterliegt den strikten Sicherheitsrichtlini
 ---
 
 ### UC-07: Flexibles Kategorien- & Ausrüstungs-Management (Multi-Select & Custom Tags)
-*   **Beschreibung:** Der Nutzer weist einem Spot mehrere Kategorien zu und ergänzt Ausrüstungsteile und Kategorien spontan.
+*   **Beschreibung:** Der Nutzer weist einem Spot mehrere Kategorien zu und ergänzt Ausrüstungsteile und Kategorien spontan. Zudem kann er falsch geschriebene Kategorien dauerhaft löschen.
 *   **Ablauf:**
     1. Nutzer wählt in der Erfassungsmaske beliebig viele Kategorien (z. B. Natur + Abstrakt) aus einer Checkliste.
     2. Nutzer fügt über ein Eingabefeld eine neue Kategorie oder ein neues Ausrüstungsteil hinzu.
     3. Das neue Element erscheint sofort in der Auswahlliste und wird dem Spot zugeordnet.
+    4. Möchte der Nutzer eine benutzerdefinierte Kategorie löschen, tippt er auf das rote Mülltonnen-Symbol.
+    5. Ist die Kategorie bei anderen Spots in Benutzung, erscheint ein Bestätigungsdialog. Nach Bestätigung wird sie von allen betroffenen Spots in der Datenbank entfernt.
 *   **Akzeptanzkriterien:**
     *   *AC-07.1:* Eigene Kategorien und Ausrüstungsteile werden dauerhaft in der Liste der Maske vorgehalten.
     *   *AC-07.2:* Nach dem Speichern werden in der Detailansicht des Spots ausschließlich die tatsächlich ausgewählten Ausrüstungsgegenstände angezeigt (keine leeren Checkboxen).
+    *   *AC-07.3:* Das Löschen einer Kategorie entfernt sie global aus der Auswahlliste und allen bereits gespeicherten Spots.
 *   **Prüfmethoden:**
     *   **Manueller Check (Vera):** Neue Kategorie „Langzeit“ und neue Ausrüstung „Graufilter“ anlegen $\rightarrow$ Auswählen $\rightarrow$ Spot speichern $\rightarrow$ Detailansicht prüfen.
+    *   **Löschtest (Vera):** Kategorie auf Mülltonnen-Symbol klicken $\rightarrow$ Dialog bestätigen $\rightarrow$ Prüfen, ob die Kategorie überall entfernt wurde.
 
 ---
 
