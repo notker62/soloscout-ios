@@ -35,16 +35,17 @@ Jeder Anwendungsfall ist direkt mit Akzeptanzkriterien und konkreten Prüfmethod
 ### UC-02: Erfassung im Nachgang (Post-Scouting)
 *   **Beschreibung:** Der Nutzer importiert ein bereits aufgenommenes Foto aus seiner iOS-Bibliothek, um es als Spot zu katalogisieren.
 *   **Ablauf:**
-    1. Nutzer wählt in der App "Bild importieren".
+    1. Nutzer wählt in der App "Mediathek".
     2. Der iOS Photo Picker öffnet sich.
     3. Nach der Auswahl extrahiert die App die EXIF-Daten (GPS-Ort, Zeit, Brennweite) des ausgewählten Assets.
-    4. Ein neuer Spot-Eintrag wird erzeugt und das Bild mit dem Spot verknüpft.
+    4. Fehlen dem Bild GPS-Koordinaten, erhält der Nutzer die Möglichkeit, den Ort manuell auf einer Karte festzulegen (siehe UC-06).
+    5. Die ermittelten/verorteten Werte werden eingetragen, ein neuer Spot wird erzeugt und das Bild verknüpft.
 *   **Akzeptanzkriterien:**
-    *   *AC-02.1:* Der Photo Picker filtert nur Bilder mit gültigen EXIF-Ortungsdaten oder gibt eine Warnung aus, falls keine GPS-Daten vorhanden sind.
+    *   *AC-02.1:* Fehlen GPS-Daten im Bild, wird keine Fehlermeldung ausgegeben, sondern der Wechsel in die manuelle Kartenverortung (UC-06) ermöglicht.
     *   *AC-02.2:* Die extrahierten Werte (Koordinaten, Datum, Brennweite) stimmen exakt mit den Originaldateidaten überein.
 *   **Prüfmethoden:**
     *   **Unit-Test (Felix):** `SoloScoutTests/UC02_LibraryImportTests.swift -> testEXIFExtractionFromAsset()` (Validiert EXIF-Parser mit Testbildern).
-    *   **Manueller Check (Vera):** Import von 3 Testbildern mit bekannten GPS-Koordinaten und Brennweiten (Weitwinkel, Tele) und Abgleich mit der Detailanzeige in der App.
+    *   **Manueller Check (Vera):** Import von Testbildern ohne GPS und Verifizieren, dass der Button „Ort auf Karte festlegen“ erscheint.
 
 ---
 
@@ -95,24 +96,49 @@ Jeder Anwendungsfall ist direkt mit Akzeptanzkriterien und konkreten Prüfmethod
 
 ---
 
+### UC-06: Manuelle Kartenplatzierung (Spot & Parkplatz)
+*   **Beschreibung:** Der Nutzer legt den Standort eines verortungsfreien Bildes oder eines Parkplatz-Pins manuell auf einer interaktiven Karte fest.
+*   **Ablauf:**
+    1. Nutzer tippt auf „Ort auf Karte festlegen“ oder „Parkplatz auf Karte verorten“.
+    2. Ein Karten-Sheet öffnet sich, zentriert auf die Koordinaten des letzten Spots (als regionaler Standardwert) bzw. auf den Spot selbst (für den Parkplatz).
+    3. Der Nutzer tippt auf die Karte, um einen Pin zu setzen.
+    4. Nach Bestätigung werden Breitengrad und Längengrad in die Erfassungsmaske übernommen.
+*   **Akzeptanzkriterien:**
+    *   *AC-06.1:* Die Karte öffnet sich zentriert in der Nähe bereits existierender Spots (Vermeidung von langwierigem Suchen auf der Weltkarte).
+    *   *AC-06.2:* Der Benutzer kann den Marker per Tap präzise verschieben.
+    *   *AC-06.3:* Die Koordinaten werden beim Speichern exakt in das Datenmodell übernommen.
+*   **Prüfmethoden:**
+    *   **Manueller Check (Vera):** Spot ohne GPS importieren $\rightarrow$ Karte öffnen $\rightarrow$ Pin setzen und verifizieren, dass die Koordinaten in den Textfeldern erscheinen.
+
+---
+
+### UC-07: Flexibles Kategorien- & Ausrüstungs-Management (Multi-Select & Custom Tags)
+*   **Beschreibung:** Der Nutzer weist einem Spot mehrere Kategorien zu und ergänzt Ausrüstungsteile und Kategorien spontan.
+*   **Ablauf:**
+    1. Nutzer wählt in der Erfassungsmaske beliebig viele Kategorien (z. B. Natur + Abstrakt) aus einer Checkliste.
+    2. Nutzer fügt über ein Eingabefeld eine neue Kategorie oder ein neues Ausrüstungsteil hinzu.
+    3. Das neue Element erscheint sofort in der Auswahlliste und wird dem Spot zugeordnet.
+*   **Akzeptanzkriterien:**
+    *   *AC-07.1:* Eigene Kategorien und Ausrüstungsteile werden dauerhaft in der Liste der Maske vorgehalten.
+    *   *AC-07.2:* Nach dem Speichern werden in der Detailansicht des Spots ausschließlich die tatsächlich ausgewählten Ausrüstungsgegenstände angezeigt (keine leeren Checkboxen).
+*   **Prüfmethoden:**
+    *   **Manueller Check (Vera):** Neue Kategorie „Langzeit“ und neue Ausrüstung „Graufilter“ anlegen $\rightarrow$ Auswählen $\rightarrow$ Spot speichern $\rightarrow$ Detailansicht prüfen.
+
+---
+
 ## 3. Zukünftige Anwendungsfälle (Priorität C - Post-MVP)
 
 Diese Anwendungsfälle sind Ideen für spätere Entwicklungsstufen und müssen für das MVP noch nicht implementiert oder getestet werden. Sie dienen jedoch als architektonische Richtschnur.
 
-### UC-06: GPX-Track-Synchronisation (Automatisches Geotagging)
+### UC-08: GPX-Track-Synchronisation (Automatisches Geotagging)
 *   **Beschreibung:** Der Nutzer lädt eine GPX-Datei hoch. Die App gleicht importierte Fotos ohne GPS-Daten über den Zeitstempel mit den GPX-Punkten ab und berechnet (interpoliert) die genaue Koordinate des Bildes.
 *   **Zukünftige Akzeptanzkriterien:**
-    *   *AC-06.1:* Erfolgreicher Import von `.gpx`-Dateien (XML-Standard).
-    *   *AC-06.2:* Korrekte lineare Interpolation der Position, falls das Foto zeitlich zwischen zwei Trackpunkten liegt.
+    *   *AC-08.1:* Erfolgreicher Import von `.gpx`-Dateien (XML-Standard).
+    *   *AC-08.2:* Korrekte lineare Interpolation der Position, falls das Foto zeitlich zwischen zwei Trackpunkten liegt.
 
-### UC-07: Zeitversatz-Korrektur (Time Sync Slider)
+### UC-09: Zeitversatz-Korrektur (Time Sync Slider)
 *   **Beschreibung:** Der Nutzer korrigiert eine asynchrone Kamerauhr, um eine korrekte Zuordnung zum GPX-Track zu ermöglichen.
 *   **Zukünftige Akzeptanzkriterien:**
-    *   *AC-07.1:* Der Nutzer kann über einen Regler oder ein Eingabefeld einen zeitlichen Offset ($+/-$ Stunden, Minuten, Sekunden) angeben.
-    *   *AC-07.2:* Der Offset wird temporär auf die Foto-Aufnahmezeit aufaddiert, bevor der GPX-Vergleich (UC-06) ausgeführt wird.
+    *   *AC-09.1:* Der Nutzer kann über einen Regler einen zeitlichen Offset aufaddieren, bevor der GPX-Vergleich (UC-08) ausgeführt wird.
 
-### UC-08: Manuelle Kartenplatzierung (Drag & Drop)
-*   **Beschreibung:** Der Nutzer platziert verortungsfreie Fotos manuell auf der Karte.
-*   **Zukünftige Akzeptanzkriterien:**
-    *   *AC-08.1:* Drag & Drop eines Fotomarkers auf der Karte aktualisiert die GPS-Koordinaten des `LocationPhoto`-Objekts in der Datenbank.
 
