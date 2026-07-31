@@ -66,7 +66,14 @@ struct LocationCaptureView: View {
     // Keyboard focus state
     @FocusState private var isInputActive: Bool
     
-    @State private var availableCategories = ["Natur", "Architektur", "Street", "Abstrakt"]
+    @State private var customCategories: [String] = []
+    
+    var availableCategories: [String] {
+        let defaultCats = ["Natur", "Architektur", "Street", "Abstrakt"]
+        let dbCats = locations.flatMap { $0.categories }
+        let allCats = Set(defaultCats + dbCats + customCategories)
+        return allCats.sorted()
+    }
     
     var lastSavedCoordinate: CLLocationCoordinate2D {
         if let last = locations.first {
@@ -205,7 +212,7 @@ struct LocationCaptureView: View {
                         Button {
                             let trimmed = newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines)
                             if !trimmed.isEmpty && !availableCategories.contains(trimmed) {
-                                availableCategories.append(trimmed)
+                                customCategories.append(trimmed)
                                 selectedCategories.append(trimmed)
                                 newCategoryName = ""
                             }
@@ -619,7 +626,7 @@ struct LocationPickerMapSheet: View {
     var body: some View {
         NavigationStack {
             MapReader { reader in
-                Map(position: $position) {
+                Map(position: $position, interactionModes: .all) {
                     if let coord = pickedCoordinate {
                         Marker("Ausgewählter Ort", systemImage: "mappin.and.ellipse", coordinate: coord)
                             .tint(.red)

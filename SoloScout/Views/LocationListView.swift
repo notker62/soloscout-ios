@@ -134,6 +134,10 @@ struct LocationRowCard: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 
+                Text("Erfasst am: \(location.creationDate.formatted(date: .numeric, time: .omitted))")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                
                 // Focal Length Badges of all perspectives
                 if !location.photos.isEmpty {
                     HStack(spacing: 4) {

@@ -35,7 +35,7 @@ struct LocationDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 // Map View with Spot and Parking pin
-                Map(position: $position) {
+                Map(position: $position, interactionModes: .all) {
                     Marker(location.title, systemImage: "camera.fill", coordinate: CLLocationCoordinate2D(latitude: location.latitude, longitude: location.longitude))
                         .tint(.red)
                     
