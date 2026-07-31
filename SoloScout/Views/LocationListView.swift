@@ -23,7 +23,7 @@ struct LocationListView: View {
         } else {
             return locations.filter { location in
                 location.title.localizedCaseInsensitiveContains(searchText) ||
-                location.category.localizedCaseInsensitiveContains(searchText) ||
+                location.categories.contains(where: { $0.localizedCaseInsensitiveContains(searchText) }) ||
                 location.descriptionNotes.localizedCaseInsensitiveContains(searchText)
             }
         }
@@ -118,14 +118,16 @@ struct LocationRowCard: View {
                     Spacer()
                     
                     // Small Category label
-                    Text(location.category)
-                        .font(.caption2)
-                        .bold()
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.accentColor.opacity(0.12))
-                        .foregroundStyle(Color.accentColor)
-                        .clipShape(Capsule())
+                    if let firstCategory = location.categories.first {
+                        Text(firstCategory)
+                            .font(.caption2)
+                            .bold()
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.accentColor.opacity(0.12))
+                            .foregroundStyle(Color.accentColor)
+                            .clipShape(Capsule())
+                    }
                 }
                 
                 Text(String(format: "GPS: %.4f, %.4f", location.latitude, location.longitude))

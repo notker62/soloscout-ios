@@ -34,7 +34,7 @@ final class UC04_DatabaseRelationTests: XCTestCase {
     /// Test AC-04.1: Multiple photos can be added to a single location, preserving individual metadata and location drift.
     func testAddMultiplePhotosToLocation() throws {
         // 1. Create a parent location
-        let location = PhotoLocation(title: "Castle Ruins", category: "Architecture", latitude: 48.1351, longitude: 11.5820)
+        let location = PhotoLocation(title: "Castle Ruins", categories: ["Architecture"], latitude: 48.1351, longitude: 11.5820)
         context.insert(location)
 
         // 2. Create the first perspective shot (Wide Angle)
@@ -71,7 +71,7 @@ final class UC04_DatabaseRelationTests: XCTestCase {
 
     /// Test AC-04.2: Deleting a single photo from a location does not delete the parent location or other sibling photos.
     func testDeleteSinglePhotoPreservesParent() throws {
-        let location = PhotoLocation(title: "Lake Side", category: "Nature", latitude: 47.1234, longitude: 12.3456)
+        let location = PhotoLocation(title: "Lake Side", categories: ["Nature"], latitude: 47.1234, longitude: 12.3456)
         context.insert(location)
 
         let photo1 = LocationPhoto()
@@ -97,7 +97,7 @@ final class UC04_DatabaseRelationTests: XCTestCase {
 
     /// Test AC-04.3: Deleting the parent location cascades and automatically purges all associated photos.
     func testDeleteParentCascadesToPhotos() throws {
-        let location = PhotoLocation(title: "Street View", category: "Street", latitude: 52.5200, longitude: 13.4050)
+        let location = PhotoLocation(title: "Street View", categories: ["Street"], latitude: 52.5200, longitude: 13.4050)
         context.insert(location)
 
         let photo = LocationPhoto()

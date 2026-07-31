@@ -16,7 +16,7 @@ public final class PhotoLocation {
     public var title: String
     public var descriptionNotes: String
     public var creationDate: Date
-    public var category: String
+    public var categories: [String]
     
     // GPS Coordinates of the spot
     public var latitude: Double
@@ -36,12 +36,12 @@ public final class PhotoLocation {
     @Relationship(deleteRule: .cascade, inverse: \LocationPhoto.location)
     public var photos: [LocationPhoto] = []
     
-    public init(title: String, category: String, latitude: Double, longitude: Double) {
+    public init(title: String, categories: [String] = [], latitude: Double, longitude: Double) {
         self.id = UUID()
         self.title = title
         self.descriptionNotes = ""
         self.creationDate = Date()
-        self.category = category
+        self.categories = categories
         self.latitude = latitude
         self.longitude = longitude
         self.hasParking = false

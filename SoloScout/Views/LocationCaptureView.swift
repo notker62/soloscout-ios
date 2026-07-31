@@ -3,7 +3,7 @@
 //  SoloScout
 //
 //  Created by Felix on 31.07.2026.
-//  Purpose: Form view handling camera capture, Photos library selection, metadata parsing, and location creation.
+//  Purpose: Form view handling camera capture, Photos library selection, metadata parsing, interactive map geotagging, and location creation.
 //  Module: Views
 //
 
@@ -11,10 +11,14 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 import CoreLocation
+import MapKit
 
 struct LocationCaptureView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    
+    // Query existing spots to find nearby coordinate default matching
+    @Query(sort: \PhotoLocation.creationDate, order: .reverse) private var locations: [PhotoLocation]
     
     // Services
     @State private var locationService = LocationService()
@@ -22,7 +26,8 @@ struct LocationCaptureView: View {
     
     // Input Fields
     @State private var title = ""
-    @State private var category = "Natur"
+    @State private var selectedCategories: [String] = ["Natur"]
+    @State private var newCategoryName = ""
     @State private var notes = ""
     
     // Coordinates
@@ -32,9 +37,10 @@ struct LocationCaptureView: View {
     @State private var parkingLatitude = ""
     @State private var parkingLongitude = ""
     
-    // Customizable gear checklist (loaded from setting defaults)
+    // Customizable gear checklist
     @State private var availableGear = ["Stativ", "ND-Filter", "Polfilter", "Drohne", "Fernauslöser"]
     @State private var selectedGear: [String] = []
+    @State private var newGearName = ""
     
     // Image Selection States
     @State private var photosPickerItem: PhotosPickerItem? = nil
@@ -48,23 +54,80 @@ struct LocationCaptureView: View {
     @State private var extractedAperture: Double? = nil
     @State private var currentPHAsset: PHAsset? = nil
     
-    // Alert feedback states for denied permissions or hardware errors
+    // Alert feedback states for validation/denied permissions
     @State private var isShowingAlert = false
     @State private var alertTitle = ""
     @State private var alertMessage = ""
     
+    // Interactive Map Sheets trigger states
+    @State private var isShowingMapPicker = false
+    @State private var isShowingParkingMapPicker = false
+    
     // Keyboard focus state
     @FocusState private var isInputActive: Bool
     
-    var categories = ["Natur", "Architektur", "Street", "Abstrakt"]
+    @State private var availableCategories = ["Natur", "Architektur", "Street", "Abstrakt"]
+    
+    var lastSavedCoordinate: CLLocationCoordinate2D {
+        if let last = locations.first {
+            return CLLocationCoordinate2D(latitude: last.latitude, longitude: last.longitude)
+        }
+        // Default to Frankfurt, Germany
+        return CLLocationCoordinate2D(latitude: 50.1109, longitude: 8.6821)
+    }
+    
+    // Clean helper computed property to resolve Swift compile complexity checks
+    var parkingInitialCenter: CLLocationCoordinate2D {
+        if let latVal = Double(latitude), let lonVal = Double(longitude) {
+            return CLLocationCoordinate2D(latitude: latVal, longitude: lonVal)
+        }
+        return lastSavedCoordinate
+    }
     
     var body: some View {
         NavigationStack {
             Form {
-                // Section 1: Media Import
+                // Section 1: Prominent Image Preview at the very top (Conditional)
+                if let thumbnailData = selectedImageThumbnail, let uiImage = UIImage(data: thumbnailData) {
+                    Section("Importiertes Foto & EXIF-Daten") {
+                        HStack(spacing: 16) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 90, height: 90)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                if let focal = extractedFocalLength {
+                                    Text("Brennweite: \(focal) mm (KB)")
+                                        .font(.caption)
+                                        .bold()
+                                }
+                                if let lens = extractedLensModel {
+                                    Text("Objektiv: \(lens)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                if let ap = extractedAperture {
+                                    Text("Blende: f/\(String(format: "%.2f", ap))")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                if !latitude.isEmpty && !longitude.isEmpty {
+                                    Text("GPS extrahiert: \(latitude), \(longitude)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                
+                // Section 2: Media Import
                 Section("Foto erfassen") {
                     HStack(spacing: 20) {
-                        // Live Camera Button with availability check
+                        // Live Camera Button
                         Button {
                             #if targetEnvironment(simulator)
                             alertTitle = "Kamera nicht verfügbar"
@@ -107,51 +170,54 @@ struct LocationCaptureView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    
-                    // Preview selected image and metadata
-                    if let thumbnailData = selectedImageThumbnail, let uiImage = UIImage(data: thumbnailData) {
-                        HStack(spacing: 16) {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 80, height: 80)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                if let focal = extractedFocalLength {
-                                    Text("Brennweite: \(focal) mm (Vollformat)")
-                                        .font(.caption)
-                                        .bold()
-                                }
-                                if let lens = extractedLensModel {
-                                    Text("Objektiv: \(lens)")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                                if let ap = extractedAperture {
-                                    Text("Blende: f/\(String(format: "%.2f", ap))")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
                 }
                 
-                // Section 2: General Details
+                // Section 3: General Details
                 Section("Allgemein") {
                     TextField("Titel des Fotospots", text: $title)
                         .focused($isInputActive)
-                    
-                    Picker("Kategorie", selection: $category) {
-                        ForEach(categories, id: \.self) { cat in
+                }
+                
+                // Section 4: Multiple Categories Checklist + Add Custom Category
+                Section("Kategorien (Mehrfachauswahl)") {
+                    ForEach(availableCategories, id: \.self) { cat in
+                        HStack {
                             Text(cat)
+                            Spacer()
+                            if selectedCategories.contains(cat) {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(.blue)
+                            }
                         }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            if selectedCategories.contains(cat) {
+                                selectedCategories.removeAll { $0 == cat }
+                            } else {
+                                selectedCategories.append(cat)
+                            }
+                        }
+                    }
+                    
+                    HStack {
+                        TextField("Eigene Kategorie hinzufügen", text: $newCategoryName)
+                            .focused($isInputActive)
+                        Button {
+                            let trimmed = newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !trimmed.isEmpty && !availableCategories.contains(trimmed) {
+                                availableCategories.append(trimmed)
+                                selectedCategories.append(trimmed)
+                                newCategoryName = ""
+                            }
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.title3)
+                        }
+                        .disabled(newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
                 
-                // Section 3: Geolocation Details
+                // Section 5: Geolocation Details + Map Geotagging
                 Section("Geodaten (Fotospot)") {
                     HStack {
                         TextField("Breitengrad (Lat)", text: $latitude)
@@ -166,14 +232,13 @@ struct LocationCaptureView: View {
                         locationService.requestAuthorization()
                         locationService.startUpdatingLocation()
                         
-                        // Wait shortly for coordinate fetch
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
                             if let coord = locationService.currentCoordinate {
                                 self.latitude = String(format: "%.6f", coord.latitude)
                                 self.longitude = String(format: "%.6f", coord.longitude)
                             } else {
                                 alertTitle = "Standortabfrage fehlgeschlagen"
-                                alertMessage = "Der Standort konnte nicht ermittelt werden. Bitte stelle sicher, dass die Ortungsdienste auf deinem Gerät aktiviert sind und der Zugriff erlaubt wurde."
+                                alertMessage = "Der Standort konnte nicht ermittelt werden. Bitte stelle sicher, dass die Ortungsdienste aktiviert sind."
                                 isShowingAlert = true
                             }
                             locationService.stopUpdatingLocation()
@@ -184,9 +249,18 @@ struct LocationCaptureView: View {
                             Text("Aktuellen Standort abfragen")
                         }
                     }
+                    
+                    Button {
+                        isShowingMapPicker = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "map.fill")
+                            Text("Ort auf Karte festlegen")
+                        }
+                    }
                 }
                 
-                // Section 4: Parking details
+                // Section 6: Parking details + Parking map picker
                 Section("Parkplatz hinzufügen") {
                     Toggle("Separater Parkplatz-Pin", isOn: $addParking)
                     
@@ -199,11 +273,20 @@ struct LocationCaptureView: View {
                                 .keyboardType(.decimalPad)
                                 .focused($isInputActive)
                         }
+                        
+                        Button {
+                            isShowingParkingMapPicker = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "car.fill")
+                                Text("Parkplatz auf Karte verorten")
+                            }
+                        }
                     }
                 }
                 
-                // Section 5: Gear Checklist
-                Section("Ausrüstung") {
+                // Section 7: Gear Checklist + Add Custom Gear
+                Section("Benötigte Ausrüstung") {
                     ForEach(availableGear, id: \.self) { gear in
                         HStack {
                             Text(gear)
@@ -222,9 +305,26 @@ struct LocationCaptureView: View {
                             }
                         }
                     }
+                    
+                    HStack {
+                        TextField("Eigene Ausrüstung hinzufügen", text: $newGearName)
+                            .focused($isInputActive)
+                        Button {
+                            let trimmed = newGearName.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !trimmed.isEmpty && !availableGear.contains(trimmed) {
+                                availableGear.append(trimmed)
+                                selectedGear.append(trimmed)
+                                newGearName = ""
+                            }
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.title3)
+                        }
+                        .disabled(newGearName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
                 }
                 
-                // Section 6: Notes
+                // Section 8: Notes
                 Section("Anmerkungen / Tipps") {
                     TextEditor(text: $notes)
                         .frame(minHeight: 100)
@@ -243,7 +343,6 @@ struct LocationCaptureView: View {
                     Button("Speichern") {
                         saveLocation()
                     }
-                    .disabled(title.isEmpty || latitude.isEmpty || longitude.isEmpty)
                 }
                 
                 ToolbarItemGroup(placement: .keyboard) {
@@ -263,27 +362,22 @@ struct LocationCaptureView: View {
                 Task {
                     guard let item = newItem else { return }
                     
-                    // Request library permissions
                     photoService.requestAuthorization { status in
                         if status == .authorized || status == .limited {
-                            // Extract PHAsset local identifier
                             if let localId = item.itemIdentifier {
                                 let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [localId], options: nil)
                                 if let asset = fetchResult.firstObject {
                                     self.currentPHAsset = asset
                                     
-                                    // Extract GPS Coordinates from photo if present
                                     if let location = asset.location {
                                         self.latitude = String(format: "%.6f", location.coordinate.latitude)
                                         self.longitude = String(format: "%.6f", location.coordinate.longitude)
                                     }
                                     
-                                    // Generate Thumbnail
                                     photoService.generateThumbnail(for: asset) { data in
                                         self.selectedImageThumbnail = data
                                     }
                                     
-                                    // Extract EXIF metadata
                                     photoService.extractMetadata(for: asset) { meta in
                                         self.extractedLensModel = meta.lensModel
                                         self.extractedFocalLength = meta.focalLengthEquivalent
@@ -293,7 +387,7 @@ struct LocationCaptureView: View {
                             }
                         } else {
                             alertTitle = "Fotomediathek-Zugriff verweigert"
-                            alertMessage = "Der Zugriff auf deine Fotomediathek wurde abgelehnt. Bitte aktiviere den Zugriff in den iOS-Einstellungen, damit wir Metadaten wie Brennweite und GPS direkt aus deinen Bildern auslesen können."
+                            alertMessage = "Der Zugriff auf deine Fotomediathek wurde abgelehnt. Bitte aktiviere den Zugriff in den iOS-Einstellungen, damit wir Metadaten direkt aus deinen Bildern auslesen können."
                             isShowingAlert = true
                         }
                     }
@@ -303,17 +397,14 @@ struct LocationCaptureView: View {
             .onChange(of: cameraImage) { _, image in
                 guard let image = image else { return }
                 
-                // Generate Thumbnail directly
                 if let data = image.jpegData(compressionQuality: 0.6) {
                     self.selectedImageThumbnail = data
                 }
                 
-                // Camera capture uses default iPhone main lens metadata approximation for MVP
                 self.extractedFocalLength = 24
                 self.extractedLensModel = "iPhone Camera"
                 self.extractedAperture = 1.78
                 
-                // Ask Location Services for GPS coordinates since camera raw UIImage does not hold location
                 locationService.requestAuthorization()
                 locationService.startUpdatingLocation()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
@@ -329,15 +420,43 @@ struct LocationCaptureView: View {
             } message: {
                 Text(alertMessage)
             }
+            // Map picker sheets
+            .sheet(isPresented: $isShowingMapPicker) {
+                LocationPickerMapSheet(
+                    latitude: $latitude,
+                    longitude: $longitude,
+                    initialCenter: lastSavedCoordinate
+                )
+            }
+            .sheet(isPresented: $isShowingParkingMapPicker) {
+                LocationPickerMapSheet(
+                    latitude: $parkingLatitude,
+                    longitude: $parkingLongitude,
+                    initialCenter: parkingInitialCenter
+                )
+            }
         }
     }
     
     private func saveLocation() {
-        guard let latVal = Double(latitude), let lonVal = Double(longitude) else { return }
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else {
+            alertTitle = "Titel fehlt"
+            alertMessage = "Bitte gib einen Namen/Titel für den Fotospot an."
+            isShowingAlert = true
+            return
+        }
+        
+        guard let latVal = Double(latitude), let lonVal = Double(longitude) else {
+            alertTitle = "Geodaten fehlen"
+            alertMessage = "Der Fotospot benötigt Koordinaten. Bitte ermittle deinen aktuellen Standort oder setze ihn auf der Karte fest."
+            isShowingAlert = true
+            return
+        }
         
         let newLocation = PhotoLocation(
-            title: title,
-            category: category,
+            title: trimmedTitle,
+            categories: selectedCategories,
             latitude: latVal,
             longitude: lonVal
         )
@@ -361,11 +480,8 @@ struct LocationCaptureView: View {
         
         if let asset = currentPHAsset {
             newPhoto.photoAssetIdentifier = asset.localIdentifier
-            
-            // Add to system "SoloScout" album for deletion protection
             addPhotoToSystemAlbum(asset: asset)
         } else if let uiImage = cameraImage {
-            // If shot live, write to system library first, then get identifier
             saveImageToPhotosLibrary(image: uiImage) { identifier in
                 if let identifier = identifier {
                     newPhoto.photoAssetIdentifier = identifier
@@ -380,7 +496,6 @@ struct LocationCaptureView: View {
         dismiss()
     }
     
-    // Core PhotosKit integration for Album organisation
     private func addPhotoToSystemAlbum(asset: PHAsset) {
         let albumName = "SoloScout"
         fetchOrCreateAlbum(named: albumName) { album in
@@ -399,7 +514,6 @@ struct LocationCaptureView: View {
             localId = createRequest.placeholderForCreatedAsset?.localIdentifier
         }, completionHandler: { success, error in
             if success, let id = localId {
-                // Also add to custom album
                 let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil)
                 if let asset = fetchResult.firstObject {
                     self.addPhotoToSystemAlbum(asset: asset)
@@ -469,6 +583,74 @@ struct CameraPicker: UIViewControllerRepresentable {
         
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             parent.isPresented = false
+        }
+    }
+}
+
+// Reusable Map Picker Sheet using modern iOS 17 MapKit
+struct LocationPickerMapSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var latitude: String
+    @Binding var longitude: String
+    var initialCenter: CLLocationCoordinate2D
+    
+    @State private var pickedCoordinate: CLLocationCoordinate2D? = nil
+    @State private var position: MapCameraPosition = .automatic
+    
+    init(latitude: Binding<String>, longitude: Binding<String>, initialCenter: CLLocationCoordinate2D) {
+        self._latitude = latitude
+        self._longitude = longitude
+        self.initialCenter = initialCenter
+        
+        if let latVal = Double(latitude.wrappedValue), let lonVal = Double(longitude.wrappedValue) {
+            let coord = CLLocationCoordinate2D(latitude: latVal, longitude: lonVal)
+            self._pickedCoordinate = State(initialValue: coord)
+            self._position = State(initialValue: .region(MKCoordinateRegion(
+                center: coord,
+                span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
+            )))
+        } else {
+            self._position = State(initialValue: .region(MKCoordinateRegion(
+                center: initialCenter,
+                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+            )))
+        }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            MapReader { reader in
+                Map(position: $position) {
+                    if let coord = pickedCoordinate {
+                        Marker("Ausgewählter Ort", systemImage: "mappin.and.ellipse", coordinate: coord)
+                            .tint(.red)
+                    }
+                }
+                .onTapGesture { screenPosition in
+                    if let coord = reader.convert(screenPosition, from: .local) {
+                        pickedCoordinate = coord
+                    }
+                }
+            }
+            .navigationTitle("Ort auf Karte festlegen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Übernehmen") {
+                        if let coord = pickedCoordinate {
+                            latitude = String(format: "%.6f", coord.latitude)
+                            longitude = String(format: "%.6f", coord.longitude)
+                        }
+                        dismiss()
+                    }
+                    .disabled(pickedCoordinate == nil)
+                }
+            }
         }
     }
 }

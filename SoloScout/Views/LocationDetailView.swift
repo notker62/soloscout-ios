@@ -63,28 +63,33 @@ struct LocationDetailView: View {
                 
                 VStack(alignment: .leading, spacing: 16) {
                     // Header Title
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(location.title)
-                                .font(.title)
-                                .bold()
-                            
-                            Text("Erstellt am \(location.creationDate.formatted(date: .abbreviated, time: .omitted))")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        
-                        Spacer()
-                        
-                        // Category Badge
-                        Text(location.category)
-                            .font(.subheadline)
+                    // Header Title & Categories
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(location.title)
+                            .font(.title)
                             .bold()
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.accentColor.opacity(0.15))
-                            .foregroundStyle(Color.accentColor)
-                            .clipShape(Capsule())
+                        
+                        Text("Erstellt am \(location.creationDate.formatted(date: .abbreviated, time: .omitted))")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        
+                        if !location.categories.isEmpty {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 6) {
+                                    ForEach(location.categories, id: \.self) { cat in
+                                        Text(cat)
+                                            .font(.caption)
+                                            .bold()
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 5)
+                                            .background(Color.accentColor.opacity(0.12))
+                                            .foregroundStyle(Color.accentColor)
+                                            .clipShape(Capsule())
+                                    }
+                                }
+                            }
+                            .padding(.top, 2)
+                        }
                     }
                     
                     Divider()
