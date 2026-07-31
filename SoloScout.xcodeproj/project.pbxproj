@@ -328,6 +328,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Diese App benötigt Zugriff auf die Kamera, um Fotospots direkt vor Ort aufzunehmen.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Diese App benötigt Zugriff auf deinen Standort, um die genauen Koordinaten der Fotospots zu erfassen.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Diese App benötigt Berechtigung zum Speichern von Fotos in deiner Fotobibliothek, um importierte Bilder in einem speziellen Album zu sichern.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Diese App benötigt Zugriff auf deine Fotobibliothek, um Fotos zu importieren und deren EXIF-Metadaten auszulesen.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -359,6 +363,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Diese App benötigt Zugriff auf die Kamera, um Fotospots direkt vor Ort aufzunehmen.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Diese App benötigt Zugriff auf deinen Standort, um die genauen Koordinaten der Fotospots zu erfassen.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Diese App benötigt Berechtigung zum Speichern von Fotos in deiner Fotobibliothek, um importierte Bilder in einem speziellen Album zu sichern.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Diese App benötigt Zugriff auf deine Fotobibliothek, um Fotos zu importieren und deren EXIF-Metadaten auszulesen.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
