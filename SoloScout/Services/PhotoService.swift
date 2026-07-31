@@ -11,6 +11,7 @@ import Foundation
 import Photos
 import UIKit
 import Observation
+import ImageIO
 
 @Observable
 public final class PhotoService {
@@ -99,6 +100,84 @@ public final class PhotoService {
             )
             completion(metadata)
         }
+    }
+    
+    /// Parses EXIF metadata directly from raw image data bytes
+    public func extractMetadata(from data: Data) -> LocationPhotoMetadata {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else {
+            return LocationPhotoMetadata(
+                latitude: nil,
+                longitude: nil,
+                captureDate: Date(),
+                lensModel: nil,
+                focalLengthEquivalent: nil,
+                aperture: nil
+            )
+        }
+        
+        let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any]
+        let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any]
+        let gps = properties[kCGImagePropertyGPSDictionary] as? [CFString: Any]
+        
+        let lensModel = exif?[kCGImagePropertyExifLensModel] as? String
+        let focalLength = exif?[kCGImagePropertyExifFocalLength] as? Double
+        let aperture = exif?[kCGImagePropertyExifFNumber] as? Double
+        
+        // Extract GPS coordinates directly from EXIF GPS dictionary
+        var extractedLat: Double? = nil
+        var extractedLon: Double? = nil
+        if let gpsData = gps {
+            let latRef = gpsData[kCGImagePropertyGPSLatitudeRef] as? String
+            let lat = gpsData[kCGImagePropertyGPSLatitude] as? Double
+            let lonRef = gpsData[kCGImagePropertyGPSLongitudeRef] as? String
+            let lon = gpsData[kCGImagePropertyGPSLongitude] as? Double
+            
+            if let lat = lat {
+                extractedLat = (latRef == "S") ? -lat : lat
+            }
+            if let lon = lon {
+                extractedLon = (lonRef == "W") ? -lon : lon
+            }
+        }
+        
+        var focalLengthEquivalent: Int? = nil
+        if let focalLength = focalLength {
+            if let exifFocal35 = exif?[kCGImagePropertyExifFocalLenIn35mmFilm] as? Int {
+                focalLengthEquivalent = exifFocal35
+            } else {
+                focalLengthEquivalent = self.calculateFocalLengthEquivalent(focalLength: focalLength, lensModel: lensModel)
+            }
+        }
+        
+        return LocationPhotoMetadata(
+            latitude: extractedLat,
+            longitude: extractedLon,
+            captureDate: Date(),
+            lensModel: lensModel ?? tiff?[kCGImagePropertyTIFFModel] as? String,
+            focalLengthEquivalent: focalLengthEquivalent,
+            aperture: aperture
+        )
+    }
+    
+    /// Downscales image data to a thumbnail size to prevent database bloat
+    public func resizeImageData(data: Data, maxDimension: CGFloat = 800) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        
+        let aspectRatio = image.size.width / image.size.height
+        var newSize: CGSize
+        if image.size.width > image.size.height {
+            newSize = CGSize(width: maxDimension, height: maxDimension / aspectRatio)
+        } else {
+            newSize = CGSize(width: maxDimension * aspectRatio, height: maxDimension)
+        }
+        
+        UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
+        image.draw(in: CGRect(origin: .zero, size: newSize))
+        let resizedImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        
+        return resizedImage?.jpegData(compressionQuality: 0.7)
     }
     
     func calculateFocalLengthEquivalent(focalLength: Double, lensModel: String?) -> Int {

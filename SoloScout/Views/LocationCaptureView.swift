@@ -362,34 +362,29 @@ struct LocationCaptureView: View {
                 Task {
                     guard let item = newItem else { return }
                     
-                    photoService.requestAuthorization { status in
-                        if status == .authorized || status == .limited {
-                            if let localId = item.itemIdentifier {
-                                let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [localId], options: nil)
-                                if let asset = fetchResult.firstObject {
-                                    self.currentPHAsset = asset
-                                    
-                                    if let location = asset.location {
-                                        self.latitude = String(format: "%.6f", location.coordinate.latitude)
-                                        self.longitude = String(format: "%.6f", location.coordinate.longitude)
-                                    }
-                                    
-                                    photoService.generateThumbnail(for: asset) { data in
-                                        self.selectedImageThumbnail = data
-                                    }
-                                    
-                                    photoService.extractMetadata(for: asset) { meta in
-                                        self.extractedLensModel = meta.lensModel
-                                        self.extractedFocalLength = meta.focalLengthEquivalent
-                                        self.extractedAperture = meta.aperture
-                                    }
-                                }
+                    do {
+                        if let data = try await item.loadTransferable(type: Data.self) {
+                            if let thumbnail = photoService.resizeImageData(data: data) {
+                                self.selectedImageThumbnail = thumbnail
+                            } else {
+                                self.selectedImageThumbnail = data
                             }
-                        } else {
-                            alertTitle = "Fotomediathek-Zugriff verweigert"
-                            alertMessage = "Der Zugriff auf deine Fotomediathek wurde abgelehnt. Bitte aktiviere den Zugriff in den iOS-Einstellungen, damit wir Metadaten direkt aus deinen Bildern auslesen können."
-                            isShowingAlert = true
+                            
+                            // Extract EXIF details directly from raw Data bytes
+                            let meta = photoService.extractMetadata(from: data)
+                            self.extractedLensModel = meta.lensModel
+                            self.extractedFocalLength = meta.focalLengthEquivalent
+                            self.extractedAperture = meta.aperture
+                            
+                            if let lat = meta.latitude, let lon = meta.longitude {
+                                self.latitude = String(format: "%.6f", lat)
+                                self.longitude = String(format: "%.6f", lon)
+                            }
                         }
+                    } catch {
+                        alertTitle = "Fehler beim Laden"
+                        alertMessage = "Das Bild konnte nicht aus der Mediathek geladen werden."
+                        isShowingAlert = true
                     }
                 }
             }
@@ -398,7 +393,11 @@ struct LocationCaptureView: View {
                 guard let image = image else { return }
                 
                 if let data = image.jpegData(compressionQuality: 0.6) {
-                    self.selectedImageThumbnail = data
+                    if let thumbnail = photoService.resizeImageData(data: data) {
+                        self.selectedImageThumbnail = thumbnail
+                    } else {
+                        self.selectedImageThumbnail = data
+                    }
                 }
                 
                 self.extractedFocalLength = 24

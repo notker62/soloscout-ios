@@ -11,7 +11,16 @@ Jeder Anwendungsfall ist direkt mit Akzeptanzkriterien und konkreten Prüfmethod
 
 ---
 
-## 2. Funktionale Anwendungsfälle (Use Cases)
+## 2. System-Fotomediathek-Integration & Berechtigungs-Grenzwerte
+
+Die Anbindung der iOS-Fotomediathek unterliegt den strikten Sicherheitsrichtlinien von Apple (iOS Sandbox):
+*   **Feste System-Fotomediathek:** Unter iOS gibt es systemweit genau eine aktive *System-Fotomediathek* (konfiguriert in der iOS-Einstellungen-App unter *Fotos*). Apps können keine benutzerdefinierten `.photoslibrary`-Dateipfade auf dem Gerät wählen. Die App greift automatisch immer auf diese primäre Mediathek zu.
+*   **Out-of-Process PhotosPicker:** Die App nutzt Apples nativen `PhotosPicker` (`PhotosUI`). Dieser läuft in einem isolierten Systemprozess. Der Benutzer wählt darin Bilder aus seiner System-Fotomediathek aus.
+*   **Berechtigungskonzept:** Da der Picker außerhalb der App läuft, muss der Benutzer der App keinen globalen Vollzugriff auf seine gesamte Fotomediathek gewähren. Die App erhält nach der Auswahl einen sicheren Datenstrom (`loadTransferable`) des ausgewählten Bildes. Dies gewährleistet maximale Datensicherheit und reibungslose Funktion auch bei restriktiven Rechteeinstellungen.
+
+---
+
+## 3. Funktionale Anwendungsfälle (Use Cases)
 
 ### UC-01: Erfassung im Vorbeigehen (On-the-go Capture)
 *   **Beschreibung:** Der Nutzer möchte an einem aktuellen physischen Standort direkt ein Foto aufnehmen und den Spot anlegen.
