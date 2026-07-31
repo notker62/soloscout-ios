@@ -53,6 +53,9 @@ struct LocationCaptureView: View {
     @State private var alertTitle = ""
     @State private var alertMessage = ""
     
+    // Keyboard focus state
+    @FocusState private var isInputActive: Bool
+    
     var categories = ["Natur", "Architektur", "Street", "Abstrakt"]
     
     var body: some View {
@@ -139,6 +142,7 @@ struct LocationCaptureView: View {
                 // Section 2: General Details
                 Section("Allgemein") {
                     TextField("Titel des Fotospots", text: $title)
+                        .focused($isInputActive)
                     
                     Picker("Kategorie", selection: $category) {
                         ForEach(categories, id: \.self) { cat in
@@ -152,8 +156,10 @@ struct LocationCaptureView: View {
                     HStack {
                         TextField("Breitengrad (Lat)", text: $latitude)
                             .keyboardType(.decimalPad)
+                            .focused($isInputActive)
                         TextField("Längengrad (Lon)", text: $longitude)
                             .keyboardType(.decimalPad)
+                            .focused($isInputActive)
                     }
                     
                     Button {
@@ -188,8 +194,10 @@ struct LocationCaptureView: View {
                         HStack {
                             TextField("Parkplatz Lat", text: $parkingLatitude)
                                 .keyboardType(.decimalPad)
+                                .focused($isInputActive)
                             TextField("Parkplatz Lon", text: $parkingLongitude)
                                 .keyboardType(.decimalPad)
+                                .focused($isInputActive)
                         }
                     }
                 }
@@ -220,6 +228,7 @@ struct LocationCaptureView: View {
                 Section("Anmerkungen / Tipps") {
                     TextEditor(text: $notes)
                         .frame(minHeight: 100)
+                        .focused($isInputActive)
                 }
             }
             .navigationTitle("Fotospot anlegen")
@@ -235,6 +244,15 @@ struct LocationCaptureView: View {
                         saveLocation()
                     }
                     .disabled(title.isEmpty || latitude.isEmpty || longitude.isEmpty)
+                }
+                
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button {
+                        isInputActive = false
+                    } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
+                    }
                 }
             }
             .fullScreenCover(isPresented: $isShowingCamera) {
