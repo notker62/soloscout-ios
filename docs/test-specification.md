@@ -92,3 +92,27 @@ Jeder Anwendungsfall ist direkt mit Akzeptanzkriterien und konkreten Prüfmethod
 *   **Prüfmethoden:**
     *   **Unit-Test (Felix):** Mock-Objekt für `PHPhotoLibrary` bereitstellen, das bei einer bestimmten ID ein Fehlen simuliert.
     *   **Manueller Check (Vera):** Spot importieren $\rightarrow$ Bild in der Apple Fotos-App löschen $\rightarrow$ App starten $\rightarrow$ Warnhinweis verifizieren.
+
+---
+
+## 3. Zukünftige Anwendungsfälle (Priorität C - Post-MVP)
+
+Diese Anwendungsfälle sind Ideen für spätere Entwicklungsstufen und müssen für das MVP noch nicht implementiert oder getestet werden. Sie dienen jedoch als architektonische Richtschnur.
+
+### UC-06: GPX-Track-Synchronisation (Automatisches Geotagging)
+*   **Beschreibung:** Der Nutzer lädt eine GPX-Datei hoch. Die App gleicht importierte Fotos ohne GPS-Daten über den Zeitstempel mit den GPX-Punkten ab und berechnet (interpoliert) die genaue Koordinate des Bildes.
+*   **Zukünftige Akzeptanzkriterien:**
+    *   *AC-06.1:* Erfolgreicher Import von `.gpx`-Dateien (XML-Standard).
+    *   *AC-06.2:* Korrekte lineare Interpolation der Position, falls das Foto zeitlich zwischen zwei Trackpunkten liegt.
+
+### UC-07: Zeitversatz-Korrektur (Time Sync Slider)
+*   **Beschreibung:** Der Nutzer korrigiert eine asynchrone Kamerauhr, um eine korrekte Zuordnung zum GPX-Track zu ermöglichen.
+*   **Zukünftige Akzeptanzkriterien:**
+    *   *AC-07.1:* Der Nutzer kann über einen Regler oder ein Eingabefeld einen zeitlichen Offset ($+/-$ Stunden, Minuten, Sekunden) angeben.
+    *   *AC-07.2:* Der Offset wird temporär auf die Foto-Aufnahmezeit aufaddiert, bevor der GPX-Vergleich (UC-06) ausgeführt wird.
+
+### UC-08: Manuelle Kartenplatzierung (Drag & Drop)
+*   **Beschreibung:** Der Nutzer platziert verortungsfreie Fotos manuell auf der Karte.
+*   **Zukünftige Akzeptanzkriterien:**
+    *   *AC-08.1:* Drag & Drop eines Fotomarkers auf der Karte aktualisiert die GPS-Koordinaten des `LocationPhoto`-Objekts in der Datenbank.
+
