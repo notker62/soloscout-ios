@@ -49,6 +49,11 @@ struct LocationCaptureView: View {
     @State private var extractedAperture: Double? = nil
     @State private var currentPHAsset: PHAsset? = nil
     
+    // Alert feedback states for denied permissions or hardware errors
+    @State private var isShowingAlert = false
+    @State private var alertTitle = ""
+    @State private var alertMessage = ""
+    
     var categories = ["Natur", "Architektur", "Street", "Abstrakt"]
     var difficulties = ["Easy", "Medium", "Hard"]
     
@@ -58,9 +63,21 @@ struct LocationCaptureView: View {
                 // Section 1: Media Import
                 Section("Foto erfassen") {
                     HStack(spacing: 20) {
-                        // Live Camera Button
+                        // Live Camera Button with availability check
                         Button {
-                            isShowingCamera = true
+                            #if targetEnvironment(simulator)
+                            alertTitle = "Kamera nicht verfügbar"
+                            alertMessage = "Die Kamera kann im iOS-Simulator nicht verwendet werden."
+                            isShowingAlert = true
+                            #else
+                            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                isShowingCamera = true
+                            } else {
+                                alertTitle = "Kamera nicht verfügbar"
+                                alertMessage = "Es ist keine Kamera auf diesem Gerät vorhanden oder der Zugriff wurde eingeschränkt."
+                                isShowingAlert = true
+                            }
+                            #endif
                         } label: {
                             VStack {
                                 Image(systemName: "camera.fill")
@@ -152,10 +169,14 @@ struct LocationCaptureView: View {
                         locationService.startUpdatingLocation()
                         
                         // Wait shortly for coordinate fetch
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
                             if let coord = locationService.currentCoordinate {
                                 self.latitude = String(format: "%.6f", coord.latitude)
                                 self.longitude = String(format: "%.6f", coord.longitude)
+                            } else {
+                                alertTitle = "Standortabfrage fehlgeschlagen"
+                                alertMessage = "Der Standort konnte nicht ermittelt werden. Bitte stelle sicher, dass die Ortungsdienste auf deinem Gerät aktiviert sind und der Zugriff erlaubt wurde."
+                                isShowingAlert = true
                             }
                             locationService.stopUpdatingLocation()
                         }
@@ -234,32 +255,36 @@ struct LocationCaptureView: View {
                     
                     // Request library permissions
                     photoService.requestAuthorization { status in
-                        guard status == .authorized || status == .limited else { return }
-                        
-                        // Extract PHAsset local identifier
-                        if let localId = item.itemIdentifier {
-                            let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [localId], options: nil)
-                            if let asset = fetchResult.firstObject {
-                                self.currentPHAsset = asset
-                                
-                                // Extract GPS Coordinates from photo if present
-                                if let location = asset.location {
-                                    self.latitude = String(format: "%.6f", location.coordinate.latitude)
-                                    self.longitude = String(format: "%.6f", location.coordinate.longitude)
-                                }
-                                
-                                // Generate Thumbnail
-                                photoService.generateThumbnail(for: asset) { data in
-                                    self.selectedImageThumbnail = data
-                                }
-                                
-                                // Extract EXIF metadata
-                                photoService.extractMetadata(for: asset) { meta in
-                                    self.extractedLensModel = meta.lensModel
-                                    self.extractedFocalLength = meta.focalLengthEquivalent
-                                    self.extractedAperture = meta.aperture
+                        if status == .authorized || status == .limited {
+                            // Extract PHAsset local identifier
+                            if let localId = item.itemIdentifier {
+                                let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [localId], options: nil)
+                                if let asset = fetchResult.firstObject {
+                                    self.currentPHAsset = asset
+                                    
+                                    // Extract GPS Coordinates from photo if present
+                                    if let location = asset.location {
+                                        self.latitude = String(format: "%.6f", location.coordinate.latitude)
+                                        self.longitude = String(format: "%.6f", location.coordinate.longitude)
+                                    }
+                                    
+                                    // Generate Thumbnail
+                                    photoService.generateThumbnail(for: asset) { data in
+                                        self.selectedImageThumbnail = data
+                                    }
+                                    
+                                    // Extract EXIF metadata
+                                    photoService.extractMetadata(for: asset) { meta in
+                                        self.extractedLensModel = meta.lensModel
+                                        self.extractedFocalLength = meta.focalLengthEquivalent
+                                        self.extractedAperture = meta.aperture
+                                    }
                                 }
                             }
+                        } else {
+                            alertTitle = "Fotomediathek-Zugriff verweigert"
+                            alertMessage = "Der Zugriff auf deine Fotomediathek wurde abgelehnt. Bitte aktiviere den Zugriff in den iOS-Einstellungen, damit wir Metadaten wie Brennweite und GPS direkt aus deinen Bildern auslesen können."
+                            isShowingAlert = true
                         }
                     }
                 }
@@ -288,6 +313,11 @@ struct LocationCaptureView: View {
                     }
                     locationService.stopUpdatingLocation()
                 }
+            }
+            .alert(alertTitle, isPresented: $isShowingAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(alertMessage)
             }
         }
     }
