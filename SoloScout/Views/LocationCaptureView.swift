@@ -24,7 +24,6 @@ struct LocationCaptureView: View {
     @State private var title = ""
     @State private var category = "Natur"
     @State private var notes = ""
-    @State private var difficulty = "Easy"
     
     // Coordinates
     @State private var latitude = ""
@@ -55,7 +54,6 @@ struct LocationCaptureView: View {
     @State private var alertMessage = ""
     
     var categories = ["Natur", "Architektur", "Street", "Abstrakt"]
-    var difficulties = ["Easy", "Medium", "Hard"]
     
     var body: some View {
         NavigationStack {
@@ -145,12 +143,6 @@ struct LocationCaptureView: View {
                     Picker("Kategorie", selection: $category) {
                         ForEach(categories, id: \.self) { cat in
                             Text(cat)
-                        }
-                    }
-                    
-                    Picker("Schwierigkeit", selection: $difficulty) {
-                        ForEach(difficulties, id: \.self) { diff in
-                            Text(diff)
                         }
                     }
                 }
@@ -332,7 +324,6 @@ struct LocationCaptureView: View {
             longitude: lonVal
         )
         newLocation.descriptionNotes = notes
-        newLocation.difficulty = difficulty
         newLocation.requiredGear = selectedGear
         
         if addParking, let pLat = Double(parkingLatitude), let pLon = Double(parkingLongitude) {

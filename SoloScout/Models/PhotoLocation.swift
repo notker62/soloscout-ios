@@ -17,7 +17,6 @@ public final class PhotoLocation {
     public var descriptionNotes: String
     public var creationDate: Date
     public var category: String
-    public var difficulty: String
     
     // GPS Coordinates of the spot
     public var latitude: Double
@@ -43,7 +42,6 @@ public final class PhotoLocation {
         self.descriptionNotes = ""
         self.creationDate = Date()
         self.category = category
-        self.difficulty = "Easy"
         self.latitude = latitude
         self.longitude = longitude
         self.hasParking = false

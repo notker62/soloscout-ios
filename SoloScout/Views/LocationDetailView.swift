@@ -108,14 +108,6 @@ struct LocationDetailView: View {
                                     .font(.body)
                             }
                         }
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("SCHWIERIGKEIT")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(location.difficulty)
-                                .font(.body)
-                        }
                     }
                     
                     Divider()
