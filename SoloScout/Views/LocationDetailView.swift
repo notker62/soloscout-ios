@@ -21,6 +21,7 @@ struct LocationDetailView: View {
     @State private var position: MapCameraPosition
     @State private var selectedDate = Date()
     @State private var sunTimeSlider = 12.0 // Hours for 2-hour sun path visualization
+    @State private var isShowingEditSheet = false
     
     init(location: PhotoLocation) {
         self.location = location
@@ -203,6 +204,14 @@ struct LocationDetailView: View {
                 }
                 .foregroundStyle(.red)
             }
+            ToolbarItem(placement: .primaryAction) {
+                Button("Bearbeiten") {
+                    isShowingEditSheet = true
+                }
+            }
+        }
+        .sheet(isPresented: $isShowingEditSheet) {
+            LocationCaptureView(locationToEdit: location)
         }
     }
 }

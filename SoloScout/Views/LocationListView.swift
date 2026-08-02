@@ -110,23 +110,23 @@ struct LocationRowCard: View {
             }
             
             VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(location.title)
-                        .font(.headline)
-                        .lineLimit(1)
-                    
-                    Spacer()
-                    
-                    // Small Category label
-                    if let firstCategory = location.categories.first {
-                        Text(firstCategory)
-                            .font(.caption2)
-                            .bold()
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Color.accentColor.opacity(0.12))
-                            .foregroundStyle(Color.accentColor)
-                            .clipShape(Capsule())
+                Text(location.title)
+                    .font(.headline)
+                    .lineLimit(1)
+                
+                if !location.categories.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 4) {
+                            ForEach(location.categories, id: \.self) { category in
+                                Text(category)
+                                    .font(.system(size: 9, weight: .bold))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(Color.accentColor.opacity(0.12))
+                                    .foregroundStyle(Color.accentColor)
+                                    .clipShape(Capsule())
+                            }
+                        }
                     }
                 }
                 

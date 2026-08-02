@@ -17,6 +17,8 @@ struct LocationCaptureView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     
+    var locationToEdit: PhotoLocation? = nil
+    
     // Query existing spots to find nearby coordinate default matching
     @Query(sort: \PhotoLocation.creationDate, order: .reverse) private var locations: [PhotoLocation]
     
@@ -363,7 +365,7 @@ struct LocationCaptureView: View {
                         .textInputAutocapitalization(.sentences)
                 }
             }
-            .navigationTitle("Fotospot anlegen")
+            .navigationTitle(locationToEdit == nil ? "Fotospot anlegen" : "Fotospot bearbeiten")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -478,6 +480,27 @@ struct LocationCaptureView: View {
                     initialCenter: parkingInitialCenter
                 )
             }
+            .onAppear {
+                if let loc = locationToEdit {
+                    title = loc.title
+                    selectedCategories = loc.categories
+                    notes = loc.descriptionNotes
+                    latitude = String(format: "%.6f", loc.latitude)
+                    longitude = String(format: "%.6f", loc.longitude)
+                    selectedGear = loc.requiredGear
+                    if loc.hasParking, let pLat = loc.parkingLatitude, let pLon = loc.parkingLongitude {
+                        addParking = true
+                        parkingLatitude = String(format: "%.6f", pLat)
+                        parkingLongitude = String(format: "%.6f", pLon)
+                    }
+                    if let firstPhoto = loc.photos.first {
+                        selectedImageThumbnail = firstPhoto.thumbnailData
+                        extractedFocalLength = firstPhoto.focalLengthEquivalent
+                        extractedLensModel = firstPhoto.originalLensModel
+                        extractedAperture = firstPhoto.aperture
+                    }
+                }
+            }
         }
     }
     
@@ -497,46 +520,92 @@ struct LocationCaptureView: View {
             return
         }
         
-        let newLocation = PhotoLocation(
-            title: trimmedTitle,
-            categories: selectedCategories,
-            latitude: latVal,
-            longitude: lonVal
-        )
-        newLocation.descriptionNotes = notes
-        newLocation.requiredGear = selectedGear
-        
-        if addParking, let pLat = Double(parkingLatitude), let pLon = Double(parkingLongitude) {
-            newLocation.hasParking = true
-            newLocation.parkingLatitude = pLat
-            newLocation.parkingLongitude = pLon
-        }
-        
-        // Create associated photo relation (1-to-N)
-        let newPhoto = LocationPhoto()
-        newPhoto.thumbnailData = selectedImageThumbnail
-        newPhoto.focalLengthEquivalent = extractedFocalLength
-        newPhoto.originalLensModel = extractedLensModel
-        newPhoto.aperture = extractedAperture
-        newPhoto.latitude = latVal
-        newPhoto.longitude = lonVal
-        
-        if let asset = currentPHAsset {
-            newPhoto.photoAssetIdentifier = asset.localIdentifier
-            addPhotoToSystemAlbum(asset: asset)
-        } else if let uiImage = cameraImage {
-            saveImageToPhotosLibrary(image: uiImage) { identifier in
-                if let identifier = identifier {
-                    newPhoto.photoAssetIdentifier = identifier
+        if let loc = locationToEdit {
+            // Edit mode: Update existing PhotoLocation properties
+            loc.title = trimmedTitle
+            loc.categories = selectedCategories
+            loc.latitude = latVal
+            loc.longitude = lonVal
+            loc.descriptionNotes = notes
+            loc.requiredGear = selectedGear
+            
+            if addParking, let pLat = Double(parkingLatitude), let pLon = Double(parkingLongitude) {
+                loc.hasParking = true
+                loc.parkingLatitude = pLat
+                loc.parkingLongitude = pLon
+            } else {
+                loc.hasParking = false
+                loc.parkingLatitude = nil
+                loc.parkingLongitude = nil
+            }
+            
+            // Only add a new photo if a new one was actually picked or shot
+            if currentPHAsset != nil || cameraImage != nil {
+                let newPhoto = LocationPhoto()
+                newPhoto.thumbnailData = selectedImageThumbnail
+                newPhoto.focalLengthEquivalent = extractedFocalLength
+                newPhoto.originalLensModel = extractedLensModel
+                newPhoto.aperture = extractedAperture
+                newPhoto.latitude = latVal
+                newPhoto.longitude = lonVal
+                
+                if let asset = currentPHAsset {
+                     newPhoto.photoAssetIdentifier = asset.localIdentifier
+                     addPhotoToSystemAlbum(asset: asset)
+                } else if let uiImage = cameraImage {
+                     saveImageToPhotosLibrary(image: uiImage) { identifier in
+                         if let identifier = identifier {
+                             newPhoto.photoAssetIdentifier = identifier
+                         }
+                     }
+                }
+                loc.photos.append(newPhoto)
+            }
+            
+            try? modelContext.save()
+            dismiss()
+        } else {
+            // Create mode: Create and insert new PhotoLocation
+            let newLocation = PhotoLocation(
+                title: trimmedTitle,
+                categories: selectedCategories,
+                latitude: latVal,
+                longitude: lonVal
+            )
+            newLocation.descriptionNotes = notes
+            newLocation.requiredGear = selectedGear
+            
+            if addParking, let pLat = Double(parkingLatitude), let pLon = Double(parkingLongitude) {
+                newLocation.hasParking = true
+                newLocation.parkingLatitude = pLat
+                newLocation.parkingLongitude = pLon
+            }
+            
+            let newPhoto = LocationPhoto()
+            newPhoto.thumbnailData = selectedImageThumbnail
+            newPhoto.focalLengthEquivalent = extractedFocalLength
+            newPhoto.originalLensModel = extractedLensModel
+            newPhoto.aperture = extractedAperture
+            newPhoto.latitude = latVal
+            newPhoto.longitude = lonVal
+            
+            if let asset = currentPHAsset {
+                newPhoto.photoAssetIdentifier = asset.localIdentifier
+                addPhotoToSystemAlbum(asset: asset)
+            } else if let uiImage = cameraImage {
+                saveImageToPhotosLibrary(image: uiImage) { identifier in
+                    if let identifier = identifier {
+                        newPhoto.photoAssetIdentifier = identifier
+                    }
                 }
             }
+            
+            newLocation.photos.append(newPhoto)
+            modelContext.insert(newLocation)
+            
+            try? modelContext.save()
+            dismiss()
         }
-        
-        newLocation.photos.append(newPhoto)
-        modelContext.insert(newLocation)
-        
-        try? modelContext.save()
-        dismiss()
     }
     
     private func addPhotoToSystemAlbum(asset: PHAsset) {
