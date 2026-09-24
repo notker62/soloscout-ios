@@ -1,0 +1,23 @@
+# SoloScout SwiftLint Configuration (GL-009 Standard)
+disabled_rules:
+  - trailing_whitespace
+  - line_length
+  - function_body_length
+  - type_body_length
+  - file_length
+
+opt_in_rules:
+  - empty_count
+  - explicit_init
+  - fatal_error_message
+  - first_where
+  - force_unwrapping
+  - overridden_super_call
+  - redundant_nil_coalescing
+
+excluded:
+  - .build
+  - .worktrees
+  - DerivedData
+  - Pods
+  - SoloScoutTests
