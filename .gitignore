@@ -1,0 +1,22 @@
+# Xcode
+## User settings
+xcuserdata/
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+
+## Build generated
+build/
+DerivedData/
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
+
+## Worktrees & Sandboxes
+.worktrees/
+.build/
+.swiftpm/
+
+## macOS
+.DS_Store
+*.swp
+*~
