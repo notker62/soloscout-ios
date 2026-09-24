@@ -9,6 +9,7 @@
 
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 struct LocationListView: View {
     @Environment(\.modelContext) private var modelContext
@@ -16,6 +17,15 @@ struct LocationListView: View {
     
     @State private var searchText = ""
     @State private var isShowingCaptureSheet = false
+    @State private var isShowingFileImporter = false
+    @State private var importStatusMessage: String?
+    @State private var isShowingStatusAlert = false
+    
+    private var exportDateString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Date())
+    }
     
     var filteredLocations: [PhotoLocation] {
         if searchText.isEmpty {
@@ -59,6 +69,45 @@ struct LocationListView: View {
             .navigationTitle("SoloScout")
             .searchable(text: $searchText, prompt: "Fotospots durchsuchen...")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        Section("Sicherung & Export") {
+                            ShareLink(
+                                item: ExportFileItem(
+                                    content: (try? ExportService.exportToJSONString(locations: locations)) ?? "[]",
+                                    filename: "soloscout-backup-\(exportDateString).json"
+                                ),
+                                preview: SharePreview("SoloScout JSON-Backup", image: Image(systemName: "externaldrive.badge.icloud"))
+                            ) {
+                                Label("JSON-Backup sichern", systemImage: "arrow.down.doc.fill")
+                            }
+                            .disabled(locations.isEmpty)
+                            
+                            ShareLink(
+                                item: ExportFileItem(
+                                    content: ExportService.exportToMarkdown(locations: locations),
+                                    filename: "soloscout-export-\(exportDateString).md"
+                                ),
+                                preview: SharePreview("SoloScout myPKA-Dossier", image: Image(systemName: "doc.plaintext"))
+                            ) {
+                                Label("Als myPKA-Markdown exportieren", systemImage: "doc.text.fill")
+                            }
+                            .disabled(locations.isEmpty)
+                        }
+                        
+                        Section("Wiederherstellung") {
+                            Button {
+                                isShowingFileImporter = true
+                            } label: {
+                                Label("Backup wiederherstellen...", systemImage: "arrow.counterclockwise.circle")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.title3)
+                    }
+                }
+                
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         isShowingCaptureSheet = true
@@ -70,6 +119,36 @@ struct LocationListView: View {
             }
             .sheet(isPresented: $isShowingCaptureSheet) {
                 LocationCaptureView()
+            }
+            .fileImporter(
+                isPresented: $isShowingFileImporter,
+                allowedContentTypes: [.json, .plainText],
+                allowsMultipleSelection: false
+            ) { result in
+                switch result {
+                case .success(let urls):
+                    guard let selectedURL = urls.first else { return }
+                    if selectedURL.startAccessingSecurityScopedResource() {
+                        defer { selectedURL.stopAccessingSecurityScopedResource() }
+                        do {
+                            let data = try Data(contentsOf: selectedURL)
+                            let count = try ExportService.restoreFromJSON(data: data, context: modelContext)
+                            importStatusMessage = "Erfolgreich \(count) Fotospots aus Backup wiederhergestellt."
+                            isShowingStatusAlert = true
+                        } catch {
+                            importStatusMessage = "Fehler beim Einlesen des Backups: \(error.localizedDescription)"
+                            isShowingStatusAlert = true
+                        }
+                    }
+                case .failure(let error):
+                    importStatusMessage = "Import abgebrochen: \(error.localizedDescription)"
+                    isShowingStatusAlert = true
+                }
+            }
+            .alert("Backup-Status", isPresented: $isShowingStatusAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(importStatusMessage ?? "")
             }
         }
     }

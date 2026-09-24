@@ -196,6 +196,17 @@ struct LocationDetailView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                ShareLink(
+                    item: ExportFileItem(
+                        content: ExportService.exportSingleLocationToMarkdown(location: location),
+                        filename: "\(location.title.lowercased().replacingOccurrences(of: " ", with: "-")).md"
+                    ),
+                    preview: SharePreview(location.title, image: Image(systemName: "doc.plaintext"))
+                ) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+            }
             ToolbarItem(placement: .destructiveAction) {
                 Button("Löschen", role: .destructive) {
                     modelContext.delete(location)
