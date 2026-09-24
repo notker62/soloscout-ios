@@ -1,46 +1,89 @@
-# SoloScout
+# SoloScout iOS
 
-SoloScout is a private, offline-first iOS application designed for photographers to capture, organize, and plan photography locations. It enables you to take quick reference photos with your iPhone, automatically extracts location, time, and focal length equivalent details, and helps you determine the best time to return with your professional camera gear.
+> **The Private, Offline-First Spot Scouting App for Landscape Photographers.**
+
+SoloScout is a native iOS application designed for landscape and outdoor photographers to discover, document, and plan photography locations. It enables rapid on-site photo capture, automatic GPS and EXIF extraction (focal length, aperture, lens profile), offline sun-position calculations (golden hour / blue hour), and seamless integration with personal knowledge management systems (Markdown / JSON).
 
 ---
 
-## Folder Structure
+## Key Features
 
-```text
-soloscout-ios/
-├── README.md                  # Project overview and architecture
-├── docs/
-│   ├── test-specification.md  # Use Cases, Acceptance Criteria and QA workflow (Pax & Vera)
-│   └── user-manual.md         # User Guide (written by Vera)
-├── SoloScout/
-│   ├── SoloScoutApp.swift     # App entry point
-│   ├── Models/                # SwiftData database entities
-│   ├── Services/              # Core logic modules (Photos, Location, Sun calculations)
-│   ├── Views/                 # SwiftUI Screens & Components
-│   └── Resources/             # Assets, Colors & Icons
-└── SoloScoutTests/            # Unit & Integration tests (Felix)
-```
+- 📍 **Offline-First Geotagging & Spot Memory:** Capture photo spots with precise GPS coordinates, dedicated parking tags, and manual scouting notes without cellular reception.
+- 📷 **EXIF Intelligence & Lens Profiling:** Automatic extraction of camera model, full-frame equivalent focal length, and aperture from live captures or imported iOS Photos.
+- ☀️ **Sun & Light Calculation Engine:** Native mathematical computation of solar azimuth, elevation, golden hour, and daylight vector timelines.
+- 🗺️ **Interactive Map Explorer:** Fullscreen Apple Maps integration with custom spot markers, live distance calculations, and instant switching between map and list views.
+- 🎒 **Gear Checklist & Categorization:** Assign recommended gear (tripod, filters, lenses) and custom seasonal/time-of-day tags to each location.
+- 🛡️ **Self-Healing SwiftData Core (SPEC-03):** Robust initialization logic preventing launch crashes during schema upgrades and certificate renewals.
+- 💾 **1-Click Backup & Obsidian Markdown Bridge (SPEC-04):** Export full JSON database backups or format complete spot catalogs into Obsidian-compatible Markdown dossiers with YAML frontmatter.
 
 ---
 
 ## Technology Stack
 
-*   **Language:** Swift 5.10+
-*   **UI Framework:** SwiftUI
-*   **Database:** SwiftData (local SQLite)
-*   **Map Engine:** MapKit (native Apple Maps with system offline support)
-*   **Media Access:** PhotosKit (`PHPhotoLibrary` / `PhotosUI`)
-*   **Camera Integration:** `AVFoundation` / `UIImagePickerController`
+| Layer | Technology |
+|---|---|
+| **Language** | Swift 5.10+ / Swift 6 Compatible |
+| **UI Framework** | SwiftUI (iOS 17+) |
+| **Data & Persistence** | SwiftData (Local SQLite with CloudKit schema readiness) |
+| **Mapping & Location** | MapKit (`MapCameraPosition`, `Marker`, `UserAnnotation`), CoreLocation |
+| **Media & EXIF** | PhotosKit (`PHAsset`, `PhotosPicker`), ImageIO, CoreGraphics |
+| **Quality & Linting** | SwiftLint (`GL-009` baseline), XCTest (100% automated test coverage) |
 
 ---
 
-## Development Workflow & Quality Gate
+## Project Structure
 
-To maintain code quality and long-term sustainability, this project implements a strict separation of concerns (Four-Eyes Principle):
+```text
+soloscout-ios/
+├── README.md                      # Project overview & quickstart
+├── .swiftlint.yml                 # Code quality and architecture rules
+├── docs/
+│   ├── PRD.md                     # Product Requirement Document & Specifications (SPEC-01 to SPEC-05)
+│   ├── ARCHITECTURE.md            # System architecture, SwiftData schema & graph
+│   └── BACKUP_AND_RESTORE.md      # JSON & Markdown export specifications
+├── SoloScout/
+│   ├── SoloScoutApp.swift         # Resilient App entry point
+│   ├── Assets.xcassets/           # App Icon (Aperture Horizon) and color assets
+│   ├── Models/                    # SwiftData database entities (PhotoLocation, LocationPhoto)
+│   ├── Services/                  # Business logic (PhotoService, LocationService, ExportService)
+│   └── Views/                     # SwiftUI views (ListView, DetailView, CaptureView, MapExplorer)
+└── SoloScoutTests/                # Automated unit & integration tests
+    ├── SPEC03_ResilienceTests.swift
+    ├── SPEC04_ExportBackupTests.swift
+    ├── UC02_PhotoServiceTests.swift
+    └── UC04_DatabaseRelationTests.swift
+```
 
-1.  **Specification (Pax):** High-level Use Cases are documented in [docs/test-specification.md](file:///Users/notker/Projekte/soloscout-ios/docs/test-specification.md).
-2.  **Quality Gates (Vera):** Acceptance criteria and verification checklists are established by Vera.
-3.  **Implementation (Felix):** Code is written modularly, and Unit/Integration tests are built under `SoloScoutTests/` to satisfy the specification.
-4.  **Security Audit (Vex):** Validates permissions, sandbox constraints, and credentials.
-5.  **Validation (Vera):** Re-runs tests, verifies manual quality checks, and writes the `user-manual.md` upon successful verification.
-6.  **Integration (Larry):** Performs the code-review and merges changes.
+---
+
+## Documentation Links
+
+- 📄 **[Product Requirement Document (PRD)](docs/PRD.md):** Complete functional specification, Use Cases (UC-01 to UC-08), and Acceptance Criteria.
+- 🏗️ **[Technical Architecture](docs/ARCHITECTURE.md):** SwiftData relational model, resilience patterns, and service interactions.
+- 💾 **[Backup & Restore Guide](docs/BACKUP_AND_RESTORE.md):** JSON schema, Obsidian Markdown export, and import instructions.
+
+---
+
+## Getting Started & Development
+
+### Prerequisites
+- macOS 14+ (Sonoma) / macOS 15+ (Sequoia)
+- Xcode 16.0+ / Xcode 27+
+- iOS 17.0+ deployment target
+
+### Building and Testing via CLI
+```bash
+# Run all automated unit and integration tests
+xcodebuild -project SoloScout.xcodeproj -scheme SoloScout -destination 'platform=iOS Simulator,name=iPhone 17 Pro' test
+
+# Run code style linter
+swiftlint lint --strict
+```
+
+---
+
+## License & Credits
+
+- **Author:** Notker Steigerwald
+- **Engineering & Architecture:** myPKA Software Factory (Larry, Felix, Vera, Silas, Iris, Pixel)
+- **License:** Proprietary / Private Use
