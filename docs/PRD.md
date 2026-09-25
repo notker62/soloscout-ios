@@ -458,5 +458,45 @@ Zur automatisierten Verifikation (XCTest) werden folgende Tests in `SoloScoutTes
 | **TEST-06.3** | `testSpotCaptureSelectionDoesNotMutateCatalog()` | An- und Abwählen von Tags/Gear in `LocationCaptureView` modifiziert ausschließlich den aktuellen Spot; der globale Katalogbestand (`TagItem`/`GearItem`) bleibt unverändert. |
 | **TEST-06.4** | `testDefaultTagsAndGearProtected()` | Standard-Tags und Standard-Ausrüstung (`isDefault = true`) können nicht im Stammdatenkatalog gelöscht werden. |
 
+---
+
+## 12. SPEC-07 – Atomare Festspeicher-Persistenz, Lifecycle-Flush & Komoot-Style Cold-Start Ladescreen
+
+### 12.1 Zweck & User Story
+- **Zweck:** Beseitigung jeglicher Verzögerungen beim Schreiben auf die physische SSD, Schutz vor Datenverlust bei abruptem App-Schließen (*App-Kill*) und Bereitstellung eines flüssigen, transparenten Lade-Erlebnisses beim Start der App.
+- **User Story:** 
+  - Als Fotograf möchte ich sicher sein, dass ein gespeicherter Spot sofort unumstößlich auf der SSD meines iPhones abgelegt ist, selbst wenn ich die App eine Millisekunde nach dem Speichern per Wisch beende.
+  - Als Fotograf möchte ich beim Öffnen der App sofort ein vertrautes, pulsierendes SoloScout-Markenicon mit Statustext sehen (wie bei Komoot), das die Daten im Hintergrund lädt und erst nach vollständigem Einlesen die Fotospot-Liste anzeigt.
+
+---
+
+### 12.2 Funktionale & Technische Anforderungen
+
+1. **SPEC-07.1 (Sofortiger synchroner SSD-Persistenz-Flush beim Speichern):**
+   - Beim Erstellen oder Ändern eines Spots/Tags/Ausrüstungsgegenstands (`LocationCaptureView`, `SettingsView`, `TagManagementView`, `GearManagementView`) wird nach dem `modelContext.insert()` sofort ein synchroner, transaktionssicherer Aufruf von `try modelContext.save()` ausgeführt.
+   - Der Abschluss der UI-Aktion (`dismiss()`) erfolgt erst, nachdem `modelContext.save()` ohne Fehler quittiert wurde.
+   - Keine asynchronen Verzögerungen oder ungeflushten Schreib-Caches.
+
+2. **SPEC-07.2 (App-Lifecycle ScenePhase-Wächter gegen App-Kills):**
+   - Auf App-Hauptebene (`SoloScoutApp` / `ContentView`) wird der iOS-Lebenszyklus via `@Environment(\.scenePhase)` überwacht.
+   - Bei jedem Übergang in den Zustand `.background` oder `.inactive` (z. B. Wisch nach oben im App-Switcher, Sperren des Bildschirms) wird automatisch ein finaler `try? modelContext.save()` ausgeführt, um alle offenen Speicherpuffer zwingend auf die SSD zu schreiben.
+
+3. **SPEC-07.3 (Komoot-Style Cold-Start Ladescreen & Ready-State):**
+   - Beim Kaltstart der App (`ContentView`) startet die App im Zustand `.loading`.
+   - Die `SplashLoadingView` zeigt ein zentriertes SoloScout-Icon (`camera.aperture` oder App-Logo), das mit einer harmonischen SwiftUI-Pulsanimation (Größen- und Deckkraft-Oszillation im 1,2-Sekunden-Takt) animiert wird.
+   - Ein dezenter Statustext informiert: *„Fotospots werden geladen...“* (bzw. *„Mit iCloud synchronisieren...“* bei aktivem Cloud-Sync).
+   - Sobald die SwiftData-Container-Initialisierung abgeschlossen ist und die Abfrage bereitsteht, schaltet der Zustand auf `.ready` um und blendet die Ladeansicht mit einem weichen Fade-Out über.
+
+---
+
+### 12.3 Prüfbarkeit & Test-Kontrakt (Vera QA Matrix)
+
+| Test-ID | Testfall | Spezifikation & Prüfkriterium |
+| :--- | :--- | :--- |
+| **TEST-07.1** | `testImmediateSynchronousDiskFlushOnLocationSave()` | Speichert einen Spot und verifiziert, dass die physische SQLite-Datei auf der SSD sofort nach Rückkehr von `saveLocation()` die neuen Daten enthält, ohne auf Hintergrund-Timer zu warten. |
+| **TEST-07.2** | `testAppLifecycleScenePhaseBackgroundTriggersSave()` | Simuliert den Szenen-Wechsel von `.active` zu `.background` und verifiziert, dass ungespeicherte Kontextänderungen automatisch persistent auf die SSD geschrieben werden. |
+| **TEST-07.3** | `testColdStartLoadingStateTransitionsToReady()` | Verifiziert die Zustandsmaschine der Startansicht von `.loading` mit Puls-Animation zu `.ready` nach Bereitstellung der Daten. |
+
+
 
 
