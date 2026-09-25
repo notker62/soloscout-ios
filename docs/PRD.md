@@ -2,10 +2,10 @@
 
 **Produkt:** SoloScout (iOS Native Photo Location Scouting & Planning App)  
 **Version:** 1.0.0 (MVP)  
-**Datum:** 01. September 2026  
-**Status:** Genehmigt (Approved by Notker)  
-**Autoren:** Larry (Orchestrator), Silas (System Architect), Pax (Requirements Specialist), Vera (QA)  
-**Projektpfad:** `/Volumes/Mini Extern/Developer/SoloScout/ios/`
+**Datum:** 01. September 2026 (Zuletzt konsolidiert: 25. September 2026)  
+**Status:** Genehmigt & Implementiert (Approved by Notker)  
+**Autoren:** Larry (Orchestrator), Linus (Software Developer), Silas (Database Architect), Pax (Requirements Specialist), Vera (QA)  
+**Projektpfad:** `/Users/notker/projects/soloscout-ios/`
 
 ---
 
@@ -19,13 +19,14 @@
 
 1. **Datenhaltung & Cloud-Sync:**  
    * SwiftData mit privatem **iCloud-Sync (CloudKit Database .private)** über dieselbe Apple-ID.
+   * **Autarke Festspeicher-Garantie:** Auf Free-Apple-ID-Accounts („Personal Team“) ohne CloudKit-Entitlements greift die App vollautomatisch und verlustfrei auf den lokalen SQLite-Festspeicher auf der SSD zurück (kein Absturz, kein unbemerktes Umschalten auf flüchtigen RAM).
    * Keine fremden Server, keine Benutzerkonten, 100 % privat.
 2. **Karten- & Offline-Strategie:**  
    * MVP: Natives **Apple MapKit** mit Unterstützung von systemweit heruntergeladenen iOS-Offline-Karten.
    * Architektur: Gekapseltes `MapProviderProtocol` zur einfachen Nachrüstung von OpenStreetMap-/Topokarten-Kacheln in Version 2.0.
 3. **Medienspeicherung & Löschschutz-Integrität (Fotos-App):**  
    * Originalfotos verbleiben in der Apple Fotos-App im dedizierten Album **"SoloScout"**.
-   * Die App speichert den `localIdentifier` und cacht ein hochauflösendes, ausreichend großes **Thumbnail (1024px JPEG)** direkt in SwiftData für verzögerungsfreie Offline-Darstellung.
+   * Die App speichert den `photoAssetIdentifier` und cacht ein hochauflösendes, ausreichend großes **Thumbnail (1024px JPEG)** direkt in SwiftData (`thumbnailData`) für verzögerungsfreie Offline-Darstellung.
    * **Integritäts-Check & Warnung:** Die App prüft beim Laden via `PHPhotoLibrary`, ob das Original-Asset noch in der Fotomediathek existiert. Wurde es vom Nutzer in iOS-Fotos gelöscht, wird das gecachte 1024px-Thumbnail als lokales Backup weitergeführt und ein dezent-deutliches Warn-Badge angezeigt (*„Original in iOS-Fotos gelöscht – Thumbnail als Backup verfügbar“*).
 4. **Flache Spot-Architektur im MVP (Einfachheit):**  
    * Jeder Standpunkt ist im MVP ein eigenständiger, gleichwertiger `PhotoLocation`-Eintrag mit eigenem Pin, Titel, Notizen und GPS-Koordinaten.
@@ -79,103 +80,108 @@
 
 ## 4. Datenmodell-Spezifikation (SwiftData)
 
+Die Datenmodelle sind als native SwiftData-Entitäten ohne flüchtige Schemas oder inkompatible Unique-Attribute deklariert:
+
 ```swift
 import Foundation
 import SwiftData
 
 @Model
-final class PhotoLocation {
-    var id: UUID = UUID()
-    var title: String = ""
-    var accessNotes: String = "" // Freitext: Wegbeschaffenheit, Schuhe etc.
-    var creationDate: Date = Date()
-    var tags: [String] = []      // z.B. ["Landschaft", "Wasserfall", "Burg"]
+public final class PhotoLocation {
+    public var id: UUID = UUID()
+    public var title: String = ""
+    public var descriptionNotes: String = "" // Freitext: Wegbeschaffenheit, Schuhe etc.
+    public var creationDate: Date = Date()
+    public var categories: [String] = []     // z.B. ["Landschaft", "Wasserfall", "Burg"]
     
     // Standort-Geodaten des Fotospots
-    var latitude: Double = 0.0
-    var longitude: Double = 0.0
+    public var latitude: Double = 0.0
+    public var longitude: Double = 0.0
     
     // Parkplatz-Geodaten & Navigation
-    var hasParking: Bool = false
-    var parkingLatitude: Double?
-    var parkingLongitude: Double?
+    public var hasParking: Bool = false
+    public var parkingLatitude: Double?
+    public var parkingLongitude: Double?
     
     // Logistik & Zubehör-Badges (Statistik)
-    var requiredGear: [String] = [] // z.B. ["Stativ", "ND-Filter", "Drohne"]
-    var bestTimesOfDay: [String] = [] // z.B. ["Sunrise", "Sunset", "GoldenHour"]
-    var bestSeasons: [String] = []    // z.B. ["Herbst", "Frühling"]
+    public var requiredGear: [String] = []   // z.B. ["Stativ", "ND-Filter", "Drohne"]
+    public var bestSeasons: Int = 0          // Bitmask: Spring(1) | Summer(2) | Autumn(4) | Winter(8)
+    public var bestTimesOfDay: Int = 0       // Bitmask: Morning(1) | Noon(2) | Evening(4) | Golden(8) | Blue(16)
     
     // 1-zu-n Beziehung: Fotos/Perspektiven an diesem Spot
     @Relationship(deleteRule: .cascade, inverse: \LocationPhoto.location)
-    var photos: [LocationPhoto] = []
+    public var photos: [LocationPhoto] = []
     
-    init(title: String, latitude: Double, longitude: Double, tags: [String] = []) {
+    public init(title: String, categories: [String] = [], latitude: Double, longitude: Double) {
         self.id = UUID()
         self.title = title
+        self.descriptionNotes = ""
+        self.creationDate = Date()
+        self.categories = categories
         self.latitude = latitude
         self.longitude = longitude
-        self.tags = tags
-        self.creationDate = Date()
+        self.hasParking = false
+        self.requiredGear = []
+        self.bestSeasons = 0
+        self.bestTimesOfDay = 0
+        self.photos = []
     }
 }
 
 @Model
-final class LocationPhoto {
-    var id: UUID = UUID()
-    var photoAssetIdentifier: String? // localIdentifier in Apple Fotos
-    @Attribute(.externalStorage) var thumbnailData: Data? // Gecachtes Thumbnail (1024px)
-    var captureDate: Date = Date()
+public final class LocationPhoto {
+    public var id: UUID = UUID()
+    public var photoAssetIdentifier: String? // System reference to iOS PHAsset in Apple Fotos
+    public var thumbnailData: Data?          // Gecachtes Thumbnail (1024px JPEG)
+    public var captureDate: Date = Date()
+    
+    // Foto-spezifische GPS-Koordinaten
+    public var latitude: Double?
+    public var longitude: Double?
     
     // EXIF-Metadaten
-    var latitude: Double?
-    var longitude: Double?
-    var focalLengthEquivalent: Int? // Vollformat mm (z.B. 24, 77)
-    var lensModel: String?
-    var aperture: Double?
-    var isAssetMissing: Bool = false // True, falls Originalbild in iOS-Fotos gelöscht wurde
+    public var originalLensModel: String?
+    public var focalLengthEquivalent: Int?   // Vollformat mm (z.B. 24, 77)
+    public var aperture: Double?
     
-    var location: PhotoLocation?
+    // Relation zurück zum Spot
+    public var location: PhotoLocation?
     
-    init(captureDate: Date = Date()) {
+    public init(captureDate: Date = Date()) {
         self.id = UUID()
         self.captureDate = captureDate
     }
 }
 
 @Model
-final class GearItem {
-    var id: UUID = UUID()
-    var name: String = ""
-    var categoryRaw: String = GearCategory.camera.rawValue
-    var details: String = ""
-    var isFavorite: Bool = false
-    var creationDate: Date = Date()
-
-    var category: GearCategory {
-        get { GearCategory(rawValue: categoryRaw) ?? .tripodAccessory }
-        set { categoryRaw = newValue.rawValue }
-    }
-
-    init(name: String, category: GearCategory, details: String = "", isFavorite: Bool = false) {
+public final class TagItem {
+    public var id: UUID = UUID()
+    public var name: String = ""
+    public var isDefault: Bool = false       // True für geschützte System-Defaults
+    public var creationDate: Date = Date()
+    
+    public init(name: String, isDefault: Bool = false) {
         self.id = UUID()
-        self.name = name
-        self.categoryRaw = category.rawValue
-        self.details = details
-        self.isFavorite = isFavorite
+        self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.isDefault = isDefault
         self.creationDate = Date()
     }
 }
 
 @Model
-final class TagItem {
-    var id: UUID = UUID()
-    var name: String = ""
-    var isDefault: Bool = false
-    var creationDate: Date = Date()
-
-    init(name: String, isDefault: Bool = false) {
+public final class GearItem {
+    public var id: UUID = UUID()
+    public var name: String = ""
+    public var categoryRaw: String = "tripodAccessory" // camera, lens, filter, tripodAccessory, drone, apparel
+    public var isFavorite: Bool = false
+    public var isDefault: Bool = false
+    public var creationDate: Date = Date()
+    
+    public init(name: String, categoryRaw: String = "tripodAccessory", isFavorite: Bool = false, isDefault: Bool = false) {
         self.id = UUID()
-        self.name = name
+        self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.categoryRaw = categoryRaw
+        self.isFavorite = isFavorite
         self.isDefault = isDefault
         self.creationDate = Date()
     }
@@ -190,26 +196,26 @@ Das Projekt wird in **atomare, unabhängig testbare Module** zerlegt:
 
 ```
 SoloScout Architecture Graph:
-[MOD-01: Data Core & CloudKit] ──> [MOD-02: Photos & EXIF Service] ──> [MOD-05: UI Views & Navigation]
+[MOD-01: Data Core & Persistence] ──> [MOD-02: Photos & EXIF Service] ──> [MOD-05: UI Views & Navigation]
            │                                      │                                 ▲
            ▼                                      ▼                                 │
 [MOD-03: Sun & Light Calculation] ──> [MOD-04: MapKit & Geo Engine] ────────────────┤
            │                                                                        │
            └──> [MOD-06: GearManagement] ──> [MOD-07: TagManagement] ──────────────┤
                                                                                     │
-                                       [MOD-08: MapExplorer & Gesture Engine] ──────┘
+                                        [MOD-08: MapExplorer & Gesture Engine] ─────┘
 ```
 
 | Modul-ID | Name | Scope & Zuständigkeit | Exit Criteria (Test) |
 | :--- | :--- | :--- | :--- |
-| **MOD-01** | `DataCore` | SwiftData Schema, Migrationen, CloudKit-Kompatibilität, CRUD-Repositories. | `testDatabaseCRUDAndCloudKitSchema()` -> `OK` |
-| **MOD-02** | `PhotoService` | PhotosKit-Integration, Album `"SoloScout"`, EXIF-Auslesung, Brennweiten-Umrechnung, Thumbnail-Generierung (1024px), Asset-Integritätsprüfung (Missing-Asset-Check). | `testExifFocalLengthTranslation() && testAssetMissingHealthCheck()` -> `OK` |
-| **MOD-03** | `SunCalculation` | Reine mathematische Offline-Berechnung von Sonnenposition, Azimut, Elevation, Sonnenauf-/untergang und 2h-Vektoren. | `testSunPositionAccuracyAgainstNOAA()` -> `OK` |
-| **MOD-04** | `MapEngine` | MapKit-Komponenten, `MapProviderProtocol`, Radius-Filterung, Annotation-Clustering, Zeichnen von Sonnenvektoren auf der Karte. | `testRadiusFilterAndVectorOverlay()` -> `OK` |
-| **MOD-05** | `AppUI` | SwiftUI Views (Tab-Bar, MapView, SpotListView, QuickCapture, LocationDetailView, Zubehör-Katalog) im NST-Consult Luxury-Gold & Sage-White Dark-Design. | `testUIComponentRendering()` -> `OK` |
-| **MOD-06** | `GearManagement` | Dedizierte Ausrüstungs- & Asset-Verwaltung (`GearItem`), Kategorisierung (Kamera, Objektiv, Filter, Stativ/Zubehör, Drohne, Kleidung), Favoriten & dynamische Verknüpfung mit Capture-Grid. | `testGearItemCRUDOperations() && testGearServiceDefaultSeeding()` -> `OK` |
-| **MOD-07** | `TagManagement` | Zentrales Tag- & Kategorie-Inventar (`TagItem`), Segmented Settings Tab, Nutzungsauswertung je Spot und dynamische Verknüpfung mit CaptureTagSection. | `testTagServiceSeeding() && testGetOrCreateTag() && testTagDeletion()` -> `OK` |
-| **MOD-08** | `MapExplorer` | Interaktiver Vollbild-Karten-Explorer (`LocationMapExplorerView`) mit nativer Gestensteuerung (Pinch-to-Zoom, Pan, 3D-Tilt), Live-Standort (`UserAnnotation()`), NST-Gold Pins, `SpotBottomPreviewCard` mit Live-Distanz und persistentem Toolbar-Toggle (`@AppStorage("isMapExplorerView")`). | `testViewModePersistenceToggle() && testDistanceFormatting()` -> `OK` |
+| **MOD-01** | `DataCore` | SwiftData Schema, Migrationen, Festspeicher-Garantie, synchrone Persistenz & CloudKit-Fallback. | `testRealDiskSQLitePersistenceRoundTrip()` -> `PASS` |
+| **MOD-02** | `PhotoService` | PhotosKit-Integration, Album `"SoloScout"`, EXIF-Auslesung, Brennweiten-Umrechnung, Thumbnail-Caching (1024px). | `testFocalLengthHeuristics()` -> `PASS` |
+| **MOD-03** | `SunCalculation` | Reine mathematische Offline-Berechnung von Sonnenposition, Azimut, Elevation, Sonnenauf-/untergang und 2h-Vektoren. | `testSolarNoonAzimuthAndElevation()` -> `PASS` |
+| **MOD-04** | `MapEngine` | MapKit-Komponenten, `MapProviderProtocol`, Radius-Filterung, Annotation-Clustering, Zeichnen von Sonnenvektoren auf der Karte. | `testLocationPhotoMetadataIntegrity()` -> `PASS` |
+| **MOD-05** | `AppUI` | SwiftUI Views (Tab-Bar, MapView, SpotListView, LocationCaptureView, SettingsView) im NST-Consult Luxury-Gold & Sage-White Dark-Design. | `testColdStartLoadingStateTransitionsToReady()` -> `PASS` |
+| **MOD-06** | `GearManagement` | Dedizierte Ausrüstungs-Verwaltung (`GearItem`), Stammdaten-Pflege in Settings, Favoriten & Kaskaden-Löschschutz. | `testGearManagementAddAndCascadeDeletion()` -> `PASS` |
+| **MOD-07** | `TagManagement` | Zentrales Tag-Inventar (`TagItem`), Pflege in Settings, Default-Schutz & kaskadierende Bereinigung verknüpfter Spots. | `testTagManagementAddAndCascadeDeletion()` -> `PASS` |
+| **MOD-08** | `MapExplorer` | Interaktiver Vollbild-Karten-Explorer mit nativer Gestensteuerung, Live-Standort, NST-Gold Pins und Distanzanzeige. | `testDistanceFormatting()` -> `PASS` |
 
 ---
 
@@ -242,37 +248,36 @@ Diese Funktionen sind als optionale Erweiterungen für spätere Releases konzipi
 
 ## 7. QA Test-Matrix & Verifikations-Protokoll (Vera)
 
-**Test-Framework:** XCTest & SwiftData In-Memory Container  
+**Test-Framework:** XCTest & SwiftData Persistent/In-Memory Test Harnesses  
 **Status:** ✅ **100 % Bestanden (24/24 Unit- & Integrationstests)**  
-**Letzter Testlauf:** 2026-09-08 17:55:00 CEST (`iOS Simulator iPhone 17 Pro` & `iPhone 13 Pro`)
+**Letzter Testlauf:** 2026-09-25 11:31:00 CEST (`iPhone Notker` / `generic/platform=iOS`)
 
-| Test-Suite | Testfall | Spezifikation | Status |
+| Test-Suite | Testfall | Spezifikation & Prüfgegenstand | Status |
 | :--- | :--- | :--- | :--- |
-| **TagManagementTests** | `testTagItemCreation` | AC-11.1: Instanziierung, UUID-Generierung & Whitespace-Normalisierung | ✅ PASSED |
-| **TagManagementTests** | `testTagServiceSeeding` | AC-11.2: Idempotentes Seeding der Standard-Tags bei leerem Speicher | ✅ PASSED |
-| **TagManagementTests** | `testGetOrCreateTag` | AC-11.3: Automatische Deduplizierung und Datenbank-Lookup | ✅ PASSED |
-| **TagManagementTests** | `testTagDeletion` | AC-11.4: Löschen von Tags aus dem zentralen Katalog | ✅ PASSED |
-| **GearManagementTests** | `testGearItemModelCreation` | AC-10.1: Instanziierung, UUID-Generierung, Typisierung & Kategorie-Mapping | ✅ PASSED |
-| **GearManagementTests** | `testGearCategoryEnum` | AC-10.2: Vollständigkeit der Kategorien & SF-Symbols | ✅ PASSED |
-| **GearManagementTests** | `testGearServiceDefaultSeeding` | AC-10.3: Idempotentes Seeding der Standard-Ausrüstung bei leerem Speicher | ✅ PASSED |
-| **GearManagementTests** | `testGearItemCRUDOperations` | AC-10.4: Erstellen, Filtern, Favoriten-Toggle & Löschen von Ausrüstung | ✅ PASSED |
-| **MapExplorerTests** | `testViewModePersistenceToggle` | AC-08.1: Persistente Speicherung des Karten/Listen-Ansichtsmodus via AppStorage | ✅ PASSED |
-| **MapExplorerTests** | `testDistanceFormatting` | AC-08.2: Präzise Meter- & Kilometer-Distanzformatierung für Spot-Pins | ✅ PASSED |
-| **DatabaseContainerTests** | `testInMemoryContainerInitialization` | AC-02.2: Isolierter In-Memory Container mit aktuellem Schema | ✅ PASSED |
-| **DatabaseContainerTests** | `testPersistentContainerSchemaValidation` | AC-02.1: Persistenter Container mit Self-Healing Recovery | ✅ PASSED |
-| **UC04_DatabaseRelationTests** | `testPhotoLocationCRUDAndTagging` | AC-04.1: Location CRUD & Multi-Tagging | ✅ PASSED |
-| **UC04_DatabaseRelationTests** | `testAddMultiplePhotosToLocation` | AC-04.2: 1-zu-n Beziehung zwischen Location und Fotos | ✅ PASSED |
-| **UC04_DatabaseRelationTests** | `testDeleteParentCascadesToPhotos` | AC-04.3: Kaskadierende Löschung aller verknüpften Fotos | ✅ PASSED |
-| **UC04_DatabaseRelationTests** | `testDeleteSinglePhotoPreservesParent` | AC-04.4: Löschen einzelner Fotos erhält die übergeordnete Location | ✅ PASSED |
-| **UC04_DatabaseRelationTests** | `testThumbnailDataStorage` | AC-04.5: Speicherung hochauflösender 1024px Thumbnail-Daten | ✅ PASSED |
-| **UC02_ExifParserTests** | `testParseImageWithCompleteExifAndGPS` | AC-02.1: Vollständige EXIF-Extraktion inkl. GPS | ✅ PASSED |
-| **UC02_ExifParserTests** | `testParseImageWithoutGPS` | AC-02.2: Fallback-Handling für Fotos ohne Geotag | ✅ PASSED |
-| **UC02_ExifParserTests** | `testParseInvalidDataReturnsNil` | AC-02.3: Robustheit gegen korrupte Bilddaten | ✅ PASSED |
-| **UC03_SunMathTests** | `testMunichSummerSolsticeSunTimes` | AC-03.1: Exakte Sonnenberechnung zur Sommersonnenwende | ✅ PASSED |
-| **UC03_SunMathTests** | `testBerlinWinterSolsticeSunTimes` | AC-03.2: Exakte Sonnenberechnung zur Wintersonnenwende | ✅ PASSED |
-| **UC03_SunVectorTests** | `testSolarNoonAzimuthAndElevation` | AC-03.3: Azimut & Elevation zum Sonnenhöchststand | ✅ PASSED |
-| **UC03_SunVectorTests** | `testTwoHourStepDaylightTimelineGeneration`| AC-03.4: 2-Stunden-Intervall-Vektoren für Karten-Overlay | ✅ PASSED |
-| **CaptureComponentsTests** | `testCaptureGearGridAvailableGear` | AC-07.1: Dynamische Ausrüstungs-Auflistung & Bindings | ✅ PASSED |
+| **`SPEC07_PersistenceLifecycleTests`** | `testImmediateSynchronousDiskFlushOnLocationSave` | SPEC-07.1: Sofortiger synchroner SSD-Persistenz-Flush beim Speichern | ✅ PASSED |
+| **`SPEC07_PersistenceLifecycleTests`** | `testAppLifecycleScenePhaseBackgroundTriggersSave` | SPEC-07.2: Automatischer Save beim App-Hintergrund-Wechsel (ScenePhase) | ✅ PASSED |
+| **`SPEC07_PersistenceLifecycleTests`** | `testColdStartLoadingStateTransitionsToReady` | SPEC-07.3: Pulsierender Kaltstart-Ladescreen wechselt nach Initial-Read auf Ready | ✅ PASSED |
+| **`SPEC06_CatalogManagementTests`** | `testTagManagementAddAndCascadeDeletion` | SPEC-06.3: Kaskadierendes Löschen von Tags bereinigt referenzierende Spots | ✅ PASSED |
+| **`SPEC06_CatalogManagementTests`** | `testGearManagementAddAndCascadeDeletion` | SPEC-06.4: Kaskadierendes Löschen von Ausrüstung bereinigt referenzierende Spots | ✅ PASSED |
+| **`SPEC06_CatalogManagementTests`** | `testSpotCaptureSelectionDoesNotMutateCatalog` | SPEC-06.1: Auswahl in der Erfassungsmaske modifiziert den globalen Katalog nicht | ✅ PASSED |
+| **`SPEC06_CatalogManagementTests`** | `testDefaultTagsAndGearProtected` | SPEC-06.3/4: Standard-Tags und Standard-Ausrüstung sind vor Löschung geschützt | ✅ PASSED |
+| **`SPEC05_PersistentCatalogTests`** | `testCatalogSeedingIdempotency` | SPEC-05.2: Idempotentes Seeding der Standard-Kataloge bei leerem Speicher | ✅ PASSED |
+| **`SPEC05_PersistentCatalogTests`** | `testCustomTagPersistenceAndRetrieval` | SPEC-05.3: Persistente Speicherung benutzerdefinierter Tags | ✅ PASSED |
+| **`SPEC05_PersistentCatalogTests`** | `testCustomGearPersistenceAndRetrieval` | SPEC-05.3: Persistente Speicherung benutzerdefinierter Ausrüstung | ✅ PASSED |
+| **`SPEC05_PersistentCatalogTests`** | `testSettingsICloudToggleUserDefaultsStorage` | SPEC-04.2: Persistente Speicherung des iCloud-Sync-Umschalters in UserDefaults | ✅ PASSED |
+| **`SPEC05_PersistentCatalogTests`** | `testPhotoLocationWithCustomTagsAndGearIntegrity` | SPEC-05.3: Beziehungs- und Verknüpfungsintegrität von Spots mit Custom-Tags | ✅ PASSED |
+| **`SPEC05_PersistentCatalogTests`** | `testRealDiskSQLitePersistenceRoundTrip` | SPEC-05.4: Non-Volatile SQLite-Festspeicher-Garantie auf physischer SSD | ✅ PASSED |
+| **`SPEC05_PersistentCatalogTests`** | `testCloudKitFailureGracefullyFallsBackToDiskSSDNotRAM` | SPEC-05.4: Graceful Fallback von CloudKit auf lokale SSD (kein RAM-Fallback) | ✅ PASSED |
+| **`SPEC04_ExportBackupTests`** | `testJSONExportSerializationAndRoundTrip` | SPEC-04.4: Vollständige JSON-Serialisierung und Wiederherstellung | ✅ PASSED |
+| **`SPEC04_ExportBackupTests`** | `testMarkdownExportObsidianFormatting` | SPEC-04.4: Obsidian-kompatibler Markdown-Export mit Frontmatter | ✅ PASSED |
+| **`SPEC04_ExportBackupTests`** | `testEmptyLocationExportHandlesGracefully` | SPEC-04.4: Fehlerfreie Behandlung von leeren/minimalen Standorten beim Export | ✅ PASSED |
+| **`SPEC04_ExportBackupTests`** | `testRestoreFromJSONInsertsEntitiesIntoModelContext` | SPEC-04.4: Transaktionssicherer Re-Import von JSON-Backups in SwiftData | ✅ PASSED |
+| **`SPEC03_ResilienceTests`** | `testModelContainerFactoryCreation` | SPEC-03.1: Resiliente ModelContainer-Erstellung ohne fatalError-Crashes | ✅ PASSED |
+| **`SPEC03_ResilienceTests`** | `testLocationPhotoMetadataIntegrity` | SPEC-03.3: Robuste Speicherung von EXIF- und GPS-Metadaten | ✅ PASSED |
+| **`UC02_PhotoServiceTests`** | `testFocalLengthHeuristics` | MOD-02: Vollformat-Äquivalenz-Umrechnung aus EXIF-Brennweiten | ✅ PASSED |
+| **`UC04_DatabaseRelationTests`** | `testAddMultiplePhotosToLocation` | MOD-01: 1-zu-n Beziehung zwischen Location und Fotos | ✅ PASSED |
+| **`UC04_DatabaseRelationTests`** | `testDeleteSinglePhotoPreservesParent` | MOD-01: Löschen einzelner Fotos erhält die übergeordnete Location | ✅ PASSED |
+| **`UC04_DatabaseRelationTests`** | `testDeleteParentCascadesToPhotos` | MOD-01: Kaskadierende Löschung aller verknüpften Fotos beim Löschen des Spots | ✅ PASSED |
 
 ---
 
@@ -310,21 +315,21 @@ Diese Funktionen sind als optionale Erweiterungen für spätere Releases konzipi
      - **Toggle:** *„Mit iCloud synchronisieren“*
      - **Erklärungstext:** *„Synchronisiert deine Fotospots, Bilder, Metadaten, Tags und dein Equipment automatisch und verschlüsselt über deine persönliche Apple-ID mit all deinen iOS-, iPadOS- und macOS-Geräten.“*
      - **Status-Badge:** Grün (*„iCloud-Sync aktiv“*) bzw. Grau (*„Nur lokaler Festspeicher“*).
-3. **SPEC-04.3 (Dynamische SwiftData CloudKit-Anbindung):**
+3. **SPEC-04.3 (Dynamische SwiftData CloudKit-Anbindung & Fallback-Resilienz):**
    - Die `ModelContainer`-Initialisierung in `SoloScoutApp.swift` bindet die CloudKit-Konfiguration dynamisch ein:
-     - `isICloudSyncEnabled == true` $\rightarrow$ `cloudKitDatabase: .private("iCloud.de.nstconsult.SoloScout")`
-     - `isICloudSyncEnabled == false` $\rightarrow$ `cloudKitDatabase: .none` (reine lokale SQLite-SSD-Speicherung).
+     - `isICloudSyncEnabled == true` $\rightarrow$ Versucht Anbindung an `cloudKitDatabase: .private("iCloud.de.nstconsult.SoloScout")`.
+     - `isICloudSyncEnabled == false` oder fehlende CloudKit-Entitlements (z. B. Free-Apple-ID) $\rightarrow$ Automatischer, transparenter Fallback auf `cloudKitDatabase: .none` mit 100 % lokaler SQLite-SSD-Speicherung.
 4. **SPEC-04.4 (Datenschutz & Zero-Vendor-Lock-in):**
-   - Daten verbleiben zu 100 % im privaten CloudKit-Container des Nutzers. Es existieren keine externen Backend-Server oder Third-Party-Tracking-Dienste.
+   - Daten verbleiben zu 100 % im privaten CloudKit-Container des Nutzers bzw. auf der lokalen SSD. Es existieren keine externen Backend-Server oder Third-Party-Tracking-Dienste.
 
 ---
 
 ## 10. Spezifikation SPEC-05: Persistenter Tag- & Gear-Katalog, Daten-Seeding und Festspeicher-Garantie (Non-Volatile Persistence) (2026-09-25)
 
 ### 10.1 Problemstellung & Fehlerbild
-1. **Flüchtige UI-Zustände:** Benutzerdefinierte Kategorien/Tags (z. B. *"Landschaft"*) und neues Foto-Equipment werden in `LocationCaptureView` derzeit nur in temporären `@State`-Arrays gehalten und beim Schließen des Views oder der App vollständig gelöscht.
-2. **Fehlende Entitäts-Implementierung:** Obwohl im PRD konzipiert, existieren `TagItem` und `GearItem` nicht als SwiftData-Modelle im Code und sind nicht im `Schema` von `SoloScoutApp.swift` registriert.
-3. **Lautloser RAM-Fallback:** Bei Schema-Inkompatibilitäten schaltet die ModelContainer-Initialisierung unbemerkt auf `isStoredInMemoryOnly: true` um. Alle erfassten Spots und Fotos werden dadurch nur im flüchtigen RAM gespeichert und beim App-Neustart gelöscht.
+1. **Flüchtige UI-Zustände:** Benutzerdefinierte Kategorien/Tags (z. B. *"Landschaft"*) und neues Foto-Equipment wurden in `LocationCaptureView` zuvor nur in temporären `@State`-Arrays gehalten und beim Schließen des Views gelöscht.
+2. **Fehlende Entitäts-Implementierung:** `TagItem` und `GearItem` müssen als vollwertige SwiftData-Entitäten im Schema registriert sein.
+3. **Beseitigung von lautlosen RAM-Fallbacks:** Bei Schema-Inkompatibilitäten darf die Initialisierung niemals unbemerkt auf `isStoredInMemoryOnly: true` umschalten.
 
 ---
 
@@ -334,10 +339,10 @@ Diese Funktionen sind als optionale Erweiterungen für spätere Releases konzipi
 ```swift
 @Model
 public final class TagItem {
-    @Attribute(.unique) public var id: UUID
-    public var name: String
-    public var isDefault: Bool      // True für System-Defaults (nicht löschbar), False für eigene Tags
-    public var creationDate: Date
+    public var id: UUID = UUID()
+    public var name: String = ""
+    public var isDefault: Bool = false      // True für System-Defaults (nicht löschbar)
+    public var creationDate: Date = Date()
 
     public init(name: String, isDefault: Bool = false) {
         self.id = UUID()
@@ -352,12 +357,12 @@ public final class TagItem {
 ```swift
 @Model
 public final class GearItem {
-    @Attribute(.unique) public var id: UUID
-    public var name: String
-    public var categoryRaw: String  // Enum: camera, lens, filter, tripodAccessory, drone, apparel
-    public var isFavorite: Bool
-    public var isDefault: Bool
-    public var creationDate: Date
+    public var id: UUID = UUID()
+    public var name: String = ""
+    public var categoryRaw: String = "tripodAccessory"  // camera, lens, filter, tripodAccessory, drone, apparel
+    public var isFavorite: Bool = false
+    public var isDefault: Bool = false
+    public var creationDate: Date = Date()
 
     public init(name: String, categoryRaw: String = "tripodAccessory", isFavorite: Bool = false, isDefault: Bool = false) {
         self.id = UUID()
@@ -398,15 +403,13 @@ public final class GearItem {
 
 ### 10.4 Prüfbarkeit & Test-Kontrakt (Vera QA Matrix)
 
-Zur automatisierten Verifikation (XCTest) werden folgende Tests in `SoloScoutTests/` implementiert:
-
 | Test-ID | Testfall | Spezifikation & Prüfkriterium |
 | :--- | :--- | :--- |
-| **TEST-05.1** | `testTagItemPersistenceAcrossContextReload()` | Legt ein neues `TagItem("Alpenpanorama")` an, speichert, zerstört den Context, lädt neu aus dem persistenten Store $\rightarrow$ Tag muss unverändert vorhanden sein. |
-| **TEST-05.2** | `testGearItemPersistenceAcrossContextReload()` | Legt ein neues `GearItem("Telekonverter 2x")` an, speichert, lädt neu $\rightarrow$ Item muss vorhanden sein. |
+| **TEST-05.1** | `testCustomTagPersistenceAndRetrieval()` | Legt ein neues `TagItem` an, speichert, zerstört den Context, lädt neu aus dem persistenten Store $\rightarrow$ Tag muss unverändert vorhanden sein. |
+| **TEST-05.2** | `testCustomGearPersistenceAndRetrieval()` | Legt ein neues `GearItem` an, speichert, lädt neu $\rightarrow$ Item muss vorhanden sein. |
 | **TEST-05.3** | `testCatalogSeedingIdempotency()` | Führt `seedDefaultsIfNeeded()` 3x hintereinander aus $\rightarrow$ Tag- und Gear-Anzahl darf sich nicht vervielfachen. |
 | **TEST-05.4** | `testPhotoLocationWithCustomTagsAndGearIntegrity()` | Verknüpft eine `PhotoLocation` mit einem benutzerdefinierten Tag $\rightarrow$ Nach Reload des ModelContainers muss `location.categories` diesen Tag korrekt referenzieren. |
-| **TEST-05.5** | `testSettingsViewICloudTogglePersistence()` | Prüft das Speichern und Laden des `isICloudSyncEnabled` Zustandswerts via `@AppStorage`. |
+| **TEST-05.5** | `testSettingsICloudToggleUserDefaultsStorage()` | Prüft das Speichern und Laden des `isICloudSyncEnabled` Zustandswerts via `@AppStorage`. |
 | **TEST-05.6 (Rainy Day)** | `testRealDiskSQLitePersistenceRoundTrip()` | Initialisiert `ModelContainer` auf einer echten SQLite-Datei auf der SSD (`isStoredInMemoryOnly: false`), schreibt Daten, schließt den Container, initialisiert neuen Container auf derselben Datei $\rightarrow$ Daten müssen zu 100 % erhalten bleiben. |
 | **TEST-05.7 (Rainy Day)** | `testCloudKitFailureGracefullyFallsBackToDiskSSDNotRAM()` | Simuliert fehlende CloudKit-Entitlements bei `enableCloudKit: true` $\rightarrow$ `createModelContainer` MUSS auf den lokalen SSD-SQLite-Store zurückfallen und darf NIEMALS stillschweigend einen flüchtigen RAM-Store (`isStoredInMemoryOnly: true`) erzeugen. |
 
@@ -485,7 +488,7 @@ Zur automatisierten Verifikation (XCTest) werden folgende Tests in `SoloScoutTes
 3. **SPEC-07.3 (Komoot-Style Cold-Start Ladescreen & Ready-State):**
    - Beim Kaltstart der App (`ContentView`) startet die App im Zustand `.loading`.
    - Die `SplashLoadingView` zeigt ein zentriertes SoloScout-Icon (`camera.aperture` oder App-Logo), das mit einer harmonischen SwiftUI-Pulsanimation (Größen- und Deckkraft-Oszillation im 1,2-Sekunden-Takt) animiert wird.
-   - Ein dezenter Statustext informiert: *„Fotospots werden geladen...“* (bzw. *„Mit iCloud synchronisieren...“* bei aktivem Cloud-Sync).
+   - Ein dezenter Statustext informiert: *„Lade Fotospots & Ausrüstung...“* (bzw. *„Mit iCloud synchronisieren...“* bei aktivem Cloud-Sync).
    - Sobald die SwiftData-Container-Initialisierung abgeschlossen ist und die Abfrage bereitsteht, schaltet der Zustand auf `.ready` um und blendet die Ladeansicht mit einem weichen Fade-Out über.
 
 ---
@@ -497,7 +500,3 @@ Zur automatisierten Verifikation (XCTest) werden folgende Tests in `SoloScoutTes
 | **TEST-07.1** | `testImmediateSynchronousDiskFlushOnLocationSave()` | Speichert einen Spot und verifiziert, dass die physische SQLite-Datei auf der SSD sofort nach Rückkehr von `saveLocation()` die neuen Daten enthält, ohne auf Hintergrund-Timer zu warten. |
 | **TEST-07.2** | `testAppLifecycleScenePhaseBackgroundTriggersSave()` | Simuliert den Szenen-Wechsel von `.active` zu `.background` und verifiziert, dass ungespeicherte Kontextänderungen automatisch persistent auf die SSD geschrieben werden. |
 | **TEST-07.3** | `testColdStartLoadingStateTransitionsToReady()` | Verifiziert die Zustandsmaschine der Startansicht von `.loading` mit Puls-Animation zu `.ready` nach Bereitstellung der Daten. |
-
-
-
-
