@@ -21,6 +21,8 @@ struct LocationCaptureView: View {
     
     // Query existing spots to find nearby coordinate default matching
     @Query(sort: \PhotoLocation.creationDate, order: .reverse) private var locations: [PhotoLocation]
+    @Query(sort: \TagItem.name) private var tagItems: [TagItem]
+    @Query(sort: \GearItem.name) private var gearItems: [GearItem]
     
     // Services
     @State private var locationService = LocationService()
@@ -28,7 +30,7 @@ struct LocationCaptureView: View {
     
     // Input Fields
     @State private var title = ""
-    @State private var selectedCategories: [String] = ["Natur"]
+    @State private var selectedCategories: [String] = ["Landschaft"]
     @State private var newCategoryName = ""
     @State private var notes = ""
     
@@ -39,8 +41,7 @@ struct LocationCaptureView: View {
     @State private var parkingLatitude = ""
     @State private var parkingLongitude = ""
     
-    // Customizable gear checklist
-    @State private var availableGear = ["Stativ", "ND-Filter", "Polfilter", "Drohne", "Fernauslöser"]
+    // Gear selections
     @State private var selectedGear: [String] = []
     @State private var newGearName = ""
     
@@ -68,18 +69,23 @@ struct LocationCaptureView: View {
     // Keyboard focus state
     @FocusState private var isInputActive: Bool
     
-    @State private var customCategories: [String] = []
-    
     // Category deletion states
     @State private var categoryToDelete: String? = nil
     @State private var isShowingDeleteCategoryAlert = false
     @State private var locationsUsingCategoryCount = 0
     
     var availableCategories: [String] {
-        let defaultCats = ["Natur", "Architektur", "Street", "Abstrakt"]
+        let tagNames = tagItems.map(\.name)
         let dbCats = locations.flatMap { $0.categories }
-        let allCats = Set(defaultCats + dbCats + customCategories)
+        let allCats = Set(tagNames + dbCats)
         return allCats.sorted()
+    }
+    
+    var availableGear: [String] {
+        let gearNames = gearItems.map(\.name)
+        let dbGear = locations.flatMap { $0.requiredGear }
+        let allGear = Set(gearNames + dbGear)
+        return allGear.sorted()
     }
     
     var lastSavedCoordinate: CLLocationCoordinate2D {
@@ -201,7 +207,8 @@ struct LocationCaptureView: View {
                             Text(cat)
                             Spacer()
                             
-                            if !["Natur", "Architektur", "Street", "Abstrakt"].contains(cat) {
+                            let isDefaultTag = tagItems.first(where: { $0.name == cat })?.isDefault ?? false
+                            if !isDefaultTag && !["Landschaft", "Natur", "Architektur", "Street", "Astro", "Makro", "Langzeitbelichtung"].contains(cat) {
                                 Button {
                                     deleteCategoryPrompt(cat)
                                 } label: {
@@ -234,9 +241,15 @@ struct LocationCaptureView: View {
                             .textInputAutocapitalization(.never)
                         Button {
                             let trimmed = newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines)
-                            if !trimmed.isEmpty && !availableCategories.contains(trimmed) {
-                                customCategories.append(trimmed)
-                                selectedCategories.append(trimmed)
+                            if !trimmed.isEmpty {
+                                if !tagItems.contains(where: { $0.name.localizedCaseInsensitiveCompare(trimmed) == .orderedSame }) {
+                                    let newTag = TagItem(name: trimmed, isDefault: false)
+                                    modelContext.insert(newTag)
+                                    try? modelContext.save()
+                                }
+                                if !selectedCategories.contains(trimmed) {
+                                    selectedCategories.append(trimmed)
+                                }
                                 newCategoryName = ""
                             }
                         } label: {
@@ -343,9 +356,15 @@ struct LocationCaptureView: View {
                             .textInputAutocapitalization(.never)
                         Button {
                             let trimmed = newGearName.trimmingCharacters(in: .whitespacesAndNewlines)
-                            if !trimmed.isEmpty && !availableGear.contains(trimmed) {
-                                availableGear.append(trimmed)
-                                selectedGear.append(trimmed)
+                            if !trimmed.isEmpty {
+                                if !gearItems.contains(where: { $0.name.localizedCaseInsensitiveCompare(trimmed) == .orderedSame }) {
+                                    let newGear = GearItem(name: trimmed, categoryRaw: "tripodAccessory", isFavorite: false, isDefault: false)
+                                    modelContext.insert(newGear)
+                                    try? modelContext.save()
+                                }
+                                if !selectedGear.contains(trimmed) {
+                                    selectedGear.append(trimmed)
+                                }
                                 newGearName = ""
                             }
                         } label: {
@@ -669,7 +688,10 @@ struct LocationCaptureView: View {
     
     private func performCategoryDeletion(_ cat: String) {
         selectedCategories.removeAll { $0 == cat }
-        customCategories.removeAll { $0 == cat }
+        
+        if let tagEntity = tagItems.first(where: { $0.name == cat }) {
+            modelContext.delete(tagEntity)
+        }
         
         for loc in locations {
             if loc.categories.contains(cat) {

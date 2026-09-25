@@ -294,27 +294,118 @@ Diese Funktionen sind als optionale Erweiterungen für spätere Releases konzipi
 
 ---
 
-## 9. Spezifikation SPEC-04: Markdown & JSON Backup / Export Engine (myPKA Bridge) (2026-09-24)
+## 9. Spezifikation SPEC-04: Native iCloud-Synchronisation (CloudKit Private DB) & SettingsView mit Zahnrad-Navigation (2026-09-25)
 
-### 9.1 Problemstellung & Ziel
-- Manuell erfasste Scouting-Notizen, Parkplatz-Koordinaten, individuelle Titel und Tags dürfen bei Zertifikatsabläufen oder Gerätewechseln niemals verloren gehen.
-- Ermöglichung eines direkten 1-Klick-Exports aller Fotospots in das persönliche Wissensmanagement (myPKA) als Obsidian-kompatibles Markdown sowie als JSON-Backup.
+### 9.1 Problemstellung & Bereinigung
+- **Beseitigung verwirrender Export-Menüs:** Die bisherigen manuellen Datei-Export-Dialoge (JSON-Backup & myPKA-Markdown-Share-Sheets) in der Haupt-Toolbar werden vollständig aus der Benutzeroberfläche entfernt, da sie den Nutzer mit Dateisystemen belasten und die UX überfrachten.
+- **Ziel:** Vollautomatische, geräteübergreifende Synchronisation aller Fotospots, Bilder, Metadaten, Tags und Ausrüstungsgegenstände über die native Apple iCloud des Nutzers (CloudKit).
 
-### 9.2 Funktionale Anforderungen (SPEC-04)
-1. **SPEC-04.1 (ExportService - JSON Backup Engine):**
-   - Generierung einer strukturierten, validen JSON-Backup-Datei (`soloscout-backup-YYYY-MM-DD.json`), die alle `PhotoLocation`-Objekte mit verknüpften `LocationPhoto`-Metadaten, Freitext-Notizen, Kategorien und GPS-Koordinaten verlustfrei serialisiert.
-2. **SPEC-04.2 (ExportService - Markdown Generator für myPKA):**
-   - Generierung einer Obsidian-Markdown-Datei pro Spot (bzw. als gebündeltes Markdown-Dossier) mit standardisiertem YAML-Frontmatter (`title`, `date`, `tags`, `latitude`, `longitude`), EXIF-Übersichtstabelle und Notizen-Sektion.
-3. **SPEC-04.3 (UI-Integration & Share Sheet):**
-   - Hinzufügen eines Export-Buttons in der Toolbar von `LocationListView`.
-   - Aufruf des nativen iOS Share Sheets (`ShareLink` / `UIActivityViewController`), sodass der Nutzer das Backup direkt in iCloud Drive, in Dateien, per AirDrop oder in myPKA speichern kann.
-4. **SPEC-04.4 (Test-Kontrakt - Vera):**
-   - Unit-Tests zur Verifikation der JSON-Serialisierung und des Markdown-Formates (`SPEC04_ExportBackupTests.swift`).
+### 9.2 Funktionale & Technische Anforderungen (SPEC-04)
+1. **SPEC-04.1 (Settings-Button & Toolbar-Bereinigung):**
+   - In der Hauptnavigationsleiste von `LocationListView` wird das Drei-Punkte-Menü entfernt.
+   - Anstelle des Export-Menüs wird oben links ein intuitives **Zahnrad-Symbol (`gearshape.fill`)** platziert, das die `SettingsView` als Modal-Sheet öffnet.
+2. **SPEC-04.2 (SettingsView & Opt-In iCloud Sync Toggle):**
+   - `SettingsView` bietet eine klare Sektion *„iCloud & Synchronisation“* mit einem Umschalter:
+     - `@AppStorage("isICloudSyncEnabled") private var isICloudSyncEnabled: Bool = false`
+     - **Toggle:** *„Mit iCloud synchronisieren“*
+     - **Erklärungstext:** *„Synchronisiert deine Fotospots, Bilder, Metadaten, Tags und dein Equipment automatisch und verschlüsselt über deine persönliche Apple-ID mit all deinen iOS-, iPadOS- und macOS-Geräten.“*
+     - **Status-Badge:** Grün (*„iCloud-Sync aktiv“*) bzw. Grau (*„Nur lokaler Festspeicher“*).
+3. **SPEC-04.3 (Dynamische SwiftData CloudKit-Anbindung):**
+   - Die `ModelContainer`-Initialisierung in `SoloScoutApp.swift` bindet die CloudKit-Konfiguration dynamisch ein:
+     - `isICloudSyncEnabled == true` $\rightarrow$ `cloudKitDatabase: .private("iCloud.de.nstconsult.SoloScout")`
+     - `isICloudSyncEnabled == false` $\rightarrow$ `cloudKitDatabase: .none` (reine lokale SQLite-SSD-Speicherung).
+4. **SPEC-04.4 (Datenschutz & Zero-Vendor-Lock-in):**
+   - Daten verbleiben zu 100 % im privaten CloudKit-Container des Nutzers. Es existieren keine externen Backend-Server oder Third-Party-Tracking-Dienste.
 
 ---
 
-## 10. Spezifikation SPEC-05: CloudKit & Schema-Resilience Architecture (2026-09-24)
+## 10. Spezifikation SPEC-05: Persistenter Tag- & Gear-Katalog, Daten-Seeding und Festspeicher-Garantie (Non-Volatile Persistence) (2026-09-25)
 
-### 10.1 Zielsetzung
-- Vorbereitung und Absicherung der SwiftData-Modelle für CloudKit-Synchronisation (alle Relationen optional, Standardwerte für skalare Typen).
-- Nahtlose Cloud-Persistenz der Metadaten über das private Apple-ID-iCloud-Konto des Nutzers.
+### 10.1 Problemstellung & Fehlerbild
+1. **Flüchtige UI-Zustände:** Benutzerdefinierte Kategorien/Tags (z. B. *"Landschaft"*) und neues Foto-Equipment werden in `LocationCaptureView` derzeit nur in temporären `@State`-Arrays gehalten und beim Schließen des Views oder der App vollständig gelöscht.
+2. **Fehlende Entitäts-Implementierung:** Obwohl im PRD konzipiert, existieren `TagItem` und `GearItem` nicht als SwiftData-Modelle im Code und sind nicht im `Schema` von `SoloScoutApp.swift` registriert.
+3. **Lautloser RAM-Fallback:** Bei Schema-Inkompatibilitäten schaltet die ModelContainer-Initialisierung unbemerkt auf `isStoredInMemoryOnly: true` um. Alle erfassten Spots und Fotos werden dadurch nur im flüchtigen RAM gespeichert und beim App-Neustart gelöscht.
+
+---
+
+### 10.2 Datenstruktur-Spezifikation (SwiftData Models)
+
+#### A. TagItem (@Model)
+```swift
+@Model
+public final class TagItem {
+    @Attribute(.unique) public var id: UUID
+    public var name: String
+    public var isDefault: Bool      // True für System-Defaults (nicht löschbar), False für eigene Tags
+    public var creationDate: Date
+
+    public init(name: String, isDefault: Bool = false) {
+        self.id = UUID()
+        self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.isDefault = isDefault
+        self.creationDate = Date()
+    }
+}
+```
+
+#### B. GearItem (@Model)
+```swift
+@Model
+public final class GearItem {
+    @Attribute(.unique) public var id: UUID
+    public var name: String
+    public var categoryRaw: String  // Enum: camera, lens, filter, tripodAccessory, drone, apparel
+    public var isFavorite: Bool
+    public var isDefault: Bool
+    public var creationDate: Date
+
+    public init(name: String, categoryRaw: String = "tripodAccessory", isFavorite: Bool = false, isDefault: Bool = false) {
+        self.id = UUID()
+        self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.categoryRaw = categoryRaw
+        self.isFavorite = isFavorite
+        self.isDefault = isDefault
+        self.creationDate = Date()
+    }
+}
+```
+
+---
+
+### 10.3 Funktionale & Technische Anforderungen (SPEC-05)
+
+1. **SPEC-05.1 (Dauerhafte Schema-Registrierung):**
+   - Das SwiftData `Schema` in `SoloScoutApp.swift` bindet verbindlich alle 4 Entitäten ein: `[PhotoLocation.self, LocationPhoto.self, TagItem.self, GearItem.self]`.
+
+2. **SPEC-05.2 (Idempotenter CatalogSeedingService beim App-Start):**
+   - Ein dedizierter Service `CatalogSeedingService.seedDefaultsIfNeeded(context:)` wird beim App-Launch ausgeführt.
+   - **Tag-Defaults:** Falls keine Tags existieren, werden initial angelegt: `["Landschaft", "Natur", "Architektur", "Street", "Astro", "Makro", "Langzeitbelichtung"]` (`isDefault = true`).
+   - **Gear-Defaults:** Falls kein Equipment existiert, werden initial angelegt: `["Stativ", "ND-Filter", "Polfilter", "Drohne", "Fernauslöser", "Stirnlampe"]` (`isDefault = true`).
+   - Das Seeding ist strikt **idempotent** (wird nur bei leerem Bestand ausgeführt, überschreibt niemals bestehende Nutzerdaten).
+
+3. **SPEC-05.3 (Dynamische Persistenz in UI-Views):**
+   - `LocationCaptureView` und `LocationDetailView` laden verfügbare Tags und Ausrüstung direkt per SwiftData-Query:  
+     `@Query(sort: \TagItem.name) private var availableTags: [TagItem]`  
+     `@Query(sort: \GearItem.name) private var availableGear: [GearItem]`
+   - Das Anlegen eines neuen Tags oder Ausrüstungsgegenstands erzeugt sofort eine persistente SwiftData-Instanz, führt `modelContext.insert()` und `modelContext.save()` aus.
+   - Der neue Tag / das neue Gerät ist sofort und dauerhaft app-weit auf der SSD (und bei aktivem Sync in iCloud) gespeichert.
+
+4. **SPEC-05.4 (Festspeicher-Garantie & Beseitigung stiller Fallbacks):**
+   - Im regulären App-Betrieb wird der `ModelContainer` zwingend mit `isStoredInMemoryOnly: false` auf der SSD initialisiert.
+   - Der In-Memory-Modus ist ausschließlich für Previews (`#Preview`) und isolierte Unit-Tests (`SoloScoutTests`) zulässig.
+
+---
+
+### 10.4 Prüfbarkeit & Test-Kontrakt (Vera QA Matrix)
+
+Zur automatisierten Verifikation (XCTest) werden folgende Tests in `SoloScoutTests/` implementiert:
+
+| Test-ID | Testfall | Spezifikation & Prüfkriterium |
+| :--- | :--- | :--- |
+| **TEST-05.1** | `testTagItemPersistenceAcrossContextReload()` | Legt ein neues `TagItem("Alpenpanorama")` an, speichert, zerstört den Context, lädt neu aus dem persistenten Store $\rightarrow$ Tag muss unverändert vorhanden sein. |
+| **TEST-05.2** | `testGearItemPersistenceAcrossContextReload()` | Legt ein neues `GearItem("Telekonverter 2x")` an, speichert, lädt neu $\rightarrow$ Item muss vorhanden sein. |
+| **TEST-05.3** | `testCatalogSeedingIdempotency()` | Führt `seedDefaultsIfNeeded()` 3x hintereinander aus $\rightarrow$ Tag- und Gear-Anzahl darf sich nicht vervielfachen. |
+| **TEST-05.4** | `testLocationRetainsAssignedCustomTags()` | Verknüpft eine `PhotoLocation` mit einem benutzerdefinierten Tag $\rightarrow$ Nach Reload des ModelContainers muss `location.categories` diesen Tag korrekt referenzieren. |
+| **TEST-05.5** | `testSettingsViewICloudTogglePersistence()` | Prüft das Speichern und Laden des `isICloudSyncEnabled` Zustandswerts via `@AppStorage`. |
+
+
