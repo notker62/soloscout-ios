@@ -118,4 +118,81 @@ final class SPEC05_PersistentCatalogTests: XCTestCase {
         XCTAssertTrue(results.first?.categories.contains("Astrofotografie") ?? false)
         XCTAssertTrue(results.first?.requiredGear.contains("Sony FE 14mm F1.8 GM") ?? false)
     }
+
+    // MARK: - Rainy Day Test Suite (TEST-05.6 & TEST-05.7)
+
+    func testRealDiskSQLitePersistenceRoundTrip() throws {
+        // Arrange: Create a dedicated temporary disk SQLite database
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        let storeURL = tempDir.appendingPathComponent("test_real_disk.store")
+        
+        let schema = Schema([
+            PhotoLocation.self,
+            LocationPhoto.self,
+            TagItem.self,
+            GearItem.self
+        ])
+        let diskConfig = ModelConfiguration(url: storeURL)
+        
+        // Act 1: Open container 1, insert spot with photo and gear, save and destroy container
+        do {
+            let container1 = try ModelContainer(for: schema, configurations: [diskConfig])
+            let ctx1 = ModelContext(container1)
+            
+            let spot = PhotoLocation(title: "Walchensee Herzogstand", categories: ["Berge", "See"], latitude: 47.604, longitude: 11.311)
+            spot.descriptionNotes = "Sonnenaufgang über dem See"
+            spot.requiredGear = ["Stativ", "Graufilter"]
+            
+            let photo = LocationPhoto()
+            photo.originalLensModel = "FE 24-70mm F2.8 GM II"
+            photo.focalLengthEquivalent = 35
+            photo.thumbnailData = Data([0xDE, 0xAD, 0xBE, 0xEF])
+            photo.location = spot
+            
+            let tag = TagItem(name: "Herbststimmung", isDefault: false)
+            let gear = GearItem(name: "Gimbal Ronin-S", categoryRaw: "gimbal", isFavorite: true, isDefault: false)
+            
+            ctx1.insert(spot)
+            ctx1.insert(photo)
+            spot.photos.append(photo)
+            ctx1.insert(tag)
+            ctx1.insert(gear)
+            
+            try ctx1.save()
+        }
+        
+        // Assert & Act 2: Verify physical SQLite file exists on SSD
+        XCTAssertTrue(FileManager.default.fileExists(atPath: storeURL.path), "Physical SQLite database file must exist on SSD")
+        
+        // Act 3: Open brand new container 2 pointing to the same disk file
+        let container2 = try ModelContainer(for: schema, configurations: [diskConfig])
+        let ctx2 = ModelContext(container2)
+        
+        let loadedSpots = try ctx2.fetch(FetchDescriptor<PhotoLocation>())
+        let loadedPhotos = try ctx2.fetch(FetchDescriptor<LocationPhoto>())
+        let loadedTags = try ctx2.fetch(FetchDescriptor<TagItem>(predicate: #Predicate { $0.name == "Herbststimmung" }))
+        let loadedGear = try ctx2.fetch(FetchDescriptor<GearItem>(predicate: #Predicate { $0.name == "Gimbal Ronin-S" }))
+        
+        XCTAssertEqual(loadedSpots.count, 1, "Must persist spot across container reloads on SSD")
+        XCTAssertEqual(loadedSpots.first?.title, "Walchensee Herzogstand")
+        XCTAssertEqual(loadedSpots.first?.requiredGear, ["Stativ", "Graufilter"])
+        XCTAssertEqual(loadedPhotos.count, 1, "Must persist associated photo across container reloads on SSD")
+        XCTAssertEqual(loadedPhotos.first?.focalLengthEquivalent, 35)
+        XCTAssertEqual(loadedPhotos.first?.thumbnailData, Data([0xDE, 0xAD, 0xBE, 0xEF]))
+        XCTAssertEqual(loadedTags.count, 1, "Must persist custom tag across container reloads on SSD")
+        XCTAssertEqual(loadedGear.count, 1, "Must persist custom gear across container reloads on SSD")
+        
+        // Clean up
+        try? FileManager.default.removeItem(at: tempDir)
+    }
+
+    func testCloudKitFailureGracefullyFallsBackToDiskSSDNotRAM() {
+        // When CloudKit is requested in an environment without provisioned CloudKit container,
+        // createModelContainer must fallback to persistent local SSD, NOT volatile RAM.
+        let container = SoloScoutApp.createModelContainer(inMemory: false, enableCloudKit: true)
+        
+        XCTAssertFalse(container.configurations.first?.isStoredInMemoryOnly ?? true,
+                       "Production container must NEVER silently degrade to in-memory RAM mode on CloudKit failure")
+    }
 }

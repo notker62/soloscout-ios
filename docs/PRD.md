@@ -405,7 +405,9 @@ Zur automatisierten Verifikation (XCTest) werden folgende Tests in `SoloScoutTes
 | **TEST-05.1** | `testTagItemPersistenceAcrossContextReload()` | Legt ein neues `TagItem("Alpenpanorama")` an, speichert, zerstört den Context, lädt neu aus dem persistenten Store $\rightarrow$ Tag muss unverändert vorhanden sein. |
 | **TEST-05.2** | `testGearItemPersistenceAcrossContextReload()` | Legt ein neues `GearItem("Telekonverter 2x")` an, speichert, lädt neu $\rightarrow$ Item muss vorhanden sein. |
 | **TEST-05.3** | `testCatalogSeedingIdempotency()` | Führt `seedDefaultsIfNeeded()` 3x hintereinander aus $\rightarrow$ Tag- und Gear-Anzahl darf sich nicht vervielfachen. |
-| **TEST-05.4** | `testLocationRetainsAssignedCustomTags()` | Verknüpft eine `PhotoLocation` mit einem benutzerdefinierten Tag $\rightarrow$ Nach Reload des ModelContainers muss `location.categories` diesen Tag korrekt referenzieren. |
+| **TEST-05.4** | `testPhotoLocationWithCustomTagsAndGearIntegrity()` | Verknüpft eine `PhotoLocation` mit einem benutzerdefinierten Tag $\rightarrow$ Nach Reload des ModelContainers muss `location.categories` diesen Tag korrekt referenzieren. |
 | **TEST-05.5** | `testSettingsViewICloudTogglePersistence()` | Prüft das Speichern und Laden des `isICloudSyncEnabled` Zustandswerts via `@AppStorage`. |
+| **TEST-05.6 (Rainy Day)** | `testRealDiskSQLitePersistenceRoundTrip()` | Initialisiert `ModelContainer` auf einer echten SQLite-Datei auf der SSD (`isStoredInMemoryOnly: false`), schreibt Daten, schließt den Container, initialisiert neuen Container auf derselben Datei $\rightarrow$ Daten müssen zu 100 % erhalten bleiben. |
+| **TEST-05.7 (Rainy Day)** | `testCloudKitFailureGracefullyFallsBackToDiskSSDNotRAM()` | Simuliert fehlende CloudKit-Entitlements bei `enableCloudKit: true` $\rightarrow$ `createModelContainer` MUSS auf den lokalen SSD-SQLite-Store zurückfallen und darf NIEMALS stillschweigend einen flüchtigen RAM-Store (`isStoredInMemoryOnly: true`) erzeugen. |
 
 
