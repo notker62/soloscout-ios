@@ -410,4 +410,53 @@ Zur automatisierten Verifikation (XCTest) werden folgende Tests in `SoloScoutTes
 | **TEST-05.6 (Rainy Day)** | `testRealDiskSQLitePersistenceRoundTrip()` | Initialisiert `ModelContainer` auf einer echten SQLite-Datei auf der SSD (`isStoredInMemoryOnly: false`), schreibt Daten, schließt den Container, initialisiert neuen Container auf derselben Datei $\rightarrow$ Daten müssen zu 100 % erhalten bleiben. |
 | **TEST-05.7 (Rainy Day)** | `testCloudKitFailureGracefullyFallsBackToDiskSSDNotRAM()` | Simuliert fehlende CloudKit-Entitlements bei `enableCloudKit: true` $\rightarrow$ `createModelContainer` MUSS auf den lokalen SSD-SQLite-Store zurückfallen und darf NIEMALS stillschweigend einen flüchtigen RAM-Store (`isStoredInMemoryOnly: true`) erzeugen. |
 
+---
+
+## 11. SPEC-06 – Stammdaten- und Katalogverwaltung (Tags & Ausrüstung)
+
+### 11.1 Zweck & User Story
+- **Zweck:** Strikte architektonische Trennung zwischen Einzelspot-Erfassung (`LocationCaptureView`) und globaler Stammdatenverwaltung (`TagManagementView`, `GearManagementView`).
+- **User Story:** Als Fotograf möchte ich meine globalen Tags und Ausrüstungsgegenstände an einem zentralen Ort in den Einstellungen pflegen (hinzufügen, umbenennen, löschen), ohne Gefahr zu laufen, beim Bearbeiten eines einzelnen Spots versehentlich globale Katalogdaten oder Verknüpfungen anderer Spots destruktiv zu löschen.
+
+---
+
+### 11.2 Funktionale Anforderungen
+
+1. **SPEC-06.1 (Bereinigung der Spot-Erfassungsmaske `LocationCaptureView`):**
+   - Entfernung aller Lösch-Icons (Mülleimer) und kaskadierenden Lösch-Dialoge aus der Erfassungsmaske `LocationCaptureView`.
+   - Das Antippen eines Tags oder Ausrüstungsgegenstands schaltet ausschließlich die Auswahl (`selectedCategories`, `selectedGear`) für den aktuell bearbeiteten Spot um.
+   - Die Quick-Add-Eingabezeile bleibt erhalten, fügt neue Einträge persistent zum Katalog hinzu und wählt sie direkt für den aktuellen Spot aus.
+
+2. **SPEC-06.2 (Katalog-Sektion in den Einstellungen `SettingsView`):**
+   - Ergänzung der Sektion *„Katalog & Stammdaten“* in `SettingsView`:
+     - NavigationLink `Tags verwalten` mit Icon `tag.fill` und Badge-Zähler der aktiven Tags.
+     - NavigationLink `Ausrüstung verwalten` mit Icon `camera.fill` und Badge-Zähler der Ausrüstungsgegenstände.
+
+3. **SPEC-06.3 (Tag-Verwaltung `TagManagementView`):**
+   - Listet alle `TagItem`-Entitäten alphabetisch auf.
+   - Standard-Tags (`isDefault = true`) sind schreibgeschützt und können nicht gelöscht werden.
+   - Benutzerdefinierte Tags (`isDefault = false`) können per Swipe-to-Delete gelöscht werden.
+   - **Kaskadierungs-Schutz:** Vor dem Löschen wird geprüft, ob der Tag von $N$ bestehenden Fotospots genutzt wird.
+     - Falls $N > 0$: Sicherheits-Alert mit Abfrage: *„Der Tag ‚[Name]‘ wird von N Spot(s) verwendet. Soll er aus dem Katalog und von allen Spots entfernt werden?“*
+   - Toolbar-Button `+` zum gezielten Anlegen neuer Tags.
+
+4. **SPEC-06.4 (Ausrüstungs-Verwaltung `GearManagementView`):**
+   - Listet alle `GearItem`-Entitäten alphabetisch oder nach Kategorie gruppiert auf.
+   - Favoriten-Stern (`isFavorite`) zum schnellen Umschalten von Top-Ausrüstung.
+   - Standard-Equipment (`isDefault = true`) ist vor Löschung geschützt.
+   - Benutzerdefinierte Ausrüstung kann per Swipe-to-Delete mit identischem Kaskadierungs-Schutz gelöscht werden.
+   - Toolbar-Button `+` zum Hinzufügen mit Namen und Kategorie-Auswahl (`lens`, `tripodAccessory`, `drone`, `filters`, `light`, `other`).
+
+---
+
+### 11.3 Prüfbarkeit & Test-Kontrakt (Vera QA Matrix)
+
+| Test-ID | Testfall | Spezifikation & Prüfkriterium |
+| :--- | :--- | :--- |
+| **TEST-06.1** | `testTagManagementAddAndCascadeDeletion()` | Löschen eines Tags in `TagManagementView` entfernt das `TagItem` aus dem Katalog und bereinigt die `categories`-Listen aller verknüpften `PhotoLocation`-Instanzen. |
+| **TEST-06.2** | `testGearManagementAddAndCascadeDeletion()` | Löschen eines Geräts in `GearManagementView` entfernt das `GearItem` und bereinigt die `requiredGear`-Listen der betroffenen Spots. |
+| **TEST-06.3** | `testSpotCaptureSelectionDoesNotMutateCatalog()` | An- und Abwählen von Tags/Gear in `LocationCaptureView` modifiziert ausschließlich den aktuellen Spot; der globale Katalogbestand (`TagItem`/`GearItem`) bleibt unverändert. |
+| **TEST-06.4** | `testDefaultTagsAndGearProtected()` | Standard-Tags und Standard-Ausrüstung (`isDefault = true`) können nicht im Stammdatenkatalog gelöscht werden. |
+
+
 
