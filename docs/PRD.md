@@ -473,7 +473,8 @@ Zur automatisierten Verifikation (XCTest) werden folgende Tests in `SoloScoutTes
 ### 12.2 Funktionale & Technische Anforderungen
 
 1. **SPEC-07.1 (Sofortiger synchroner SSD-Persistenz-Flush beim Speichern):**
-   - Beim Erstellen oder Ändern eines Spots/Tags/Ausrüstungsgegenstands (`LocationCaptureView`, `SettingsView`, `TagManagementView`, `GearManagementView`) wird nach dem `modelContext.insert()` sofort ein synchroner, transaktionssicherer Aufruf von `try modelContext.save()` ausgeführt.
+   - Beim Erstellen oder Ändern eines Spots, Fotos, Tags oder Ausrüstungsgegenstands (`LocationCaptureView`, `SettingsView`, `TagManagementView`, `GearManagementView`) wird nach dem `modelContext.insert()` sofort ein synchroner, transaktionssicherer Aufruf von `try modelContext.save()` ausgeführt.
+   - **Ganzheitliche Datensatz-Garantie:** Dies gilt holistisch für alle vier Datenbereiche: Jeder neue Fotospot (`PhotoLocation`), jedes neue Bild mit EXIF-Metadaten (`LocationPhoto`), jeder neu angelegte Tag (`TagItem`) und jedes neue Ausrüstungsgerät (`GearItem`) wird beim Drücken von „Speichern“ nicht nur im RAM gehalten, sondern in derselben atomaren Transaktion direkt und dauerhaft auf die physische SSD geschrieben.
    - Der Abschluss der UI-Aktion (`dismiss()`) erfolgt erst, nachdem `modelContext.save()` ohne Fehler quittiert wurde.
    - Keine asynchronen Verzögerungen oder ungeflushten Schreib-Caches.
 
