@@ -69,11 +69,6 @@ struct LocationCaptureView: View {
     // Keyboard focus state
     @FocusState private var isInputActive: Bool
     
-    // Category deletion states
-    @State private var categoryToDelete: String? = nil
-    @State private var isShowingDeleteCategoryAlert = false
-    @State private var locationsUsingCategoryCount = 0
-    
     var availableCategories: [String] {
         let tagNames = tagItems.map(\.name)
         let dbCats = locations.flatMap { $0.categories }
@@ -206,18 +201,6 @@ struct LocationCaptureView: View {
                         HStack {
                             Text(cat)
                             Spacer()
-                            
-                            let isDefaultTag = tagItems.first(where: { $0.name == cat })?.isDefault ?? false
-                            if !isDefaultTag && !["Landschaft", "Natur", "Architektur", "Street", "Astro", "Makro", "Langzeitbelichtung"].contains(cat) {
-                                Button {
-                                    deleteCategoryPrompt(cat)
-                                } label: {
-                                    Image(systemName: "trash")
-                                        .foregroundStyle(.red)
-                                }
-                                .buttonStyle(.plain)
-                                .padding(.trailing, 8)
-                            }
                             
                             if selectedCategories.contains(cat) {
                                 Image(systemName: "checkmark")
@@ -472,18 +455,6 @@ struct LocationCaptureView: View {
             } message: {
                 Text(alertMessage)
             }
-            .alert("Kategorie löschen", isPresented: $isShowingDeleteCategoryAlert, presenting: categoryToDelete) { cat in
-                Button("Abbrechen", role: .cancel) { }
-                Button("Löschen", role: .destructive) {
-                    performCategoryDeletion(cat)
-                }
-            } message: { cat in
-                if locationsUsingCategoryCount > 0 {
-                    Text("Die Kategorie „\(cat)“ wird von \(locationsUsingCategoryCount) Spot(s) verwendet. Wenn du sie löschst, wird sie von all diesen Spots entfernt.")
-                } else {
-                    Text("Möchtest du die Kategorie „\(cat)“ wirklich löschen?")
-                }
-            }
             // Map picker sheets
             .sheet(isPresented: $isShowingMapPicker) {
                 LocationPickerMapSheet(
@@ -583,8 +554,14 @@ struct LocationCaptureView: View {
                 loc.photos.append(newPhoto)
             }
             
-            try? modelContext.save()
-            dismiss()
+            do {
+                try modelContext.save()
+                dismiss()
+            } catch {
+                alertTitle = "Speicherfehler"
+                alertMessage = "Der Fotospot konnte nicht auf der SSD gespeichert werden: \(error.localizedDescription)"
+                isShowingAlert = true
+            }
         } else {
             // Create mode: Create and insert new PhotoLocation
             let newLocation = PhotoLocation(
@@ -629,8 +606,14 @@ struct LocationCaptureView: View {
                 newLocation.photos.append(newPhoto)
             }
             
-            try? modelContext.save()
-            dismiss()
+            do {
+                try modelContext.save()
+                dismiss()
+            } catch {
+                alertTitle = "Speicherfehler"
+                alertMessage = "Der Fotospot konnte nicht auf der SSD gespeichert werden: \(error.localizedDescription)"
+                isShowingAlert = true
+            }
         }
     }
     
@@ -684,28 +667,6 @@ struct LocationCaptureView: View {
                 }
             })
         }
-    }
-    
-    private func deleteCategoryPrompt(_ cat: String) {
-        let count = locations.filter { $0.categories.contains(cat) }.count
-        self.categoryToDelete = cat
-        self.locationsUsingCategoryCount = count
-        self.isShowingDeleteCategoryAlert = true
-    }
-    
-    private func performCategoryDeletion(_ cat: String) {
-        selectedCategories.removeAll { $0 == cat }
-        
-        if let tagEntity = tagItems.first(where: { $0.name == cat }) {
-            modelContext.delete(tagEntity)
-        }
-        
-        for loc in locations {
-            if loc.categories.contains(cat) {
-                loc.categories.removeAll { $0 == cat }
-            }
-        }
-        try? modelContext.save()
     }
 }
 

@@ -48,7 +48,30 @@ struct SettingsView: View {
                     Text("Synchronisiert deine Fotospots, Bilder, Metadaten, Tags und dein Equipment automatisch und verschlüsselt über deine persönliche Apple-ID mit all deinen iOS-, iPadOS- und macOS-Geräten. Daten verbleiben zu 100 % in deinem privaten Apple CloudKit-Speicher.")
                 }
                 
-                // Section 2: Storage Statistics
+                // Section 2: Catalog & Master Data Management (SPEC-06)
+                Section("Katalog & Stammdaten") {
+                    NavigationLink(destination: TagManagementView()) {
+                        HStack {
+                            Label("Tags & Kategorien verwalten", systemImage: "tag.fill")
+                            Spacer()
+                            Text("\(tags.count)")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    
+                    NavigationLink(destination: GearManagementView()) {
+                        HStack {
+                            Label("Ausrüstung verwalten", systemImage: "camera.fill")
+                            Spacer()
+                            Text("\(gear.count)")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                
+                // Section 3: Storage Statistics
                 Section("Lokaler Datenbestand") {
                     HStack {
                         Label("Gespeicherte Fotospots", systemImage: "mappin.and.ellipse")
