@@ -500,3 +500,47 @@ public final class GearItem {
 | **TEST-07.1** | `testImmediateSynchronousDiskFlushOnLocationSave()` | Speichert einen Spot und verifiziert, dass die physische SQLite-Datei auf der SSD sofort nach Rückkehr von `saveLocation()` die neuen Daten enthält, ohne auf Hintergrund-Timer zu warten. |
 | **TEST-07.2** | `testAppLifecycleScenePhaseBackgroundTriggersSave()` | Simuliert den Szenen-Wechsel von `.active` zu `.background` und verifiziert, dass ungespeicherte Kontextänderungen automatisch persistent auf die SSD geschrieben werden. |
 | **TEST-07.3** | `testColdStartLoadingStateTransitionsToReady()` | Verifiziert die Zustandsmaschine der Startansicht von `.loading` mit Puls-Animation zu `.ready` nach Bereitstellung der Daten. |
+
+---
+
+## 13. Ideen-Backlog & Zukünftige Feature-Realisierungen (Feature Backlog & Roadmap)
+
+Dieser Abschnitt dient als strukturiertes Sammelbecken für priorisierte Erweiterungsideen, UI-Evolutionen und zukünftige Feature-Realisierungen jenseits des Basis-MVP.
+
+---
+
+### 13.1 Priorität A (Hohe Priorität / Nächste Iteration)
+
+#### IDEA-01: Map-First Startbildschirm mit 15-km-Umkreis-Discovery
+- **Konzept:** Der Standard-Einstiegsbildschirm der App nach dem Kaltstart-Ladescreen ist nicht die Listen-/Datenbankansicht, sondern direkt die interaktive **Vollbild-Landkarte (Map-First UX)**.
+- **Funktionale Anforderungen:**
+  1. **Automatischer Fokus:** Die Karte zentriert sich beim Öffnen automatisch auf den aktuellen Standort des Nutzers mit einem Standard-Beobachtungsradius von **15 Kilometern**.
+  2. **Spot-Discovery:** Alle in diesem 15-km-Radius liegenden, bereits gespeicherten Fotospots werden als NST-Gold-Pins mit Vorschau-Badges angezeigt.
+  3. **Direkt-Navigation:** 
+     - Durch Antippen eines Pins öffnet sich die Detailansicht des jeweiligen Spots.
+     - Über einen prominenten UI-Umschalter (Toolbar-Toggle oder Tab-Navigation) kann der Nutzer jederzeit nahtlos zwischen der Kartenansicht und der vollständigen Listen-/Datenbankübersicht wechseln.
+  4. **Standort-Fallback:** Liegt keine GPS-Freigabe vor oder befindet sich der Nutzer außerhalb gespeicherter Spots, zoomt die Karte auf das Gesamt-Bounding-Box-Cluster aller vorhandenen Spots.
+
+---
+
+### 13.2 Priorität C (Mittlere & Spätere Priorität / Post-MVP)
+
+#### IDEA-02: Fremdbild-Import mit visueller Karten-Verortung (Pin-Drop) & GPS-Override
+- **Konzept:** Nahtlose Integration von Fremdbildern (z. B. aus dem Web heruntergeladene Referenzfotos, historische Scans oder Fotos von Kameras ohne eigenes GPS-Modul), die keine verlässlichen EXIF-Geodaten enthalten.
+- **Funktionale Anforderungen:**
+  1. **Interaktive Platzierungskarte:** Beim Import eines geodatenfreien Bildes (oder auf Wunsch bei bestehenden Fotos) blendet die Erfassungsmaske eine interaktive Karte ein.
+  2. **Gestenbasierte Verortung:** Der Nutzer navigiert per Zoom (Pinch-to-Zoom) und Verschieben (Pan) an den exakten Entstehungsort und setzt per Fingertipp (Tap / Long-Press) den genauen Aufnahme-Pin.
+  3. **Manuelle GPS-Korrektur (Override):** Die ermittelten Koordinaten werden übernommen; zusätzlich steht ein optionales Eingabefeld zur manuellen numerischen Feinkorrektur der Dezimal-Koordinaten (Latitude / Longitude) zur Verfügung.
+
+#### IDEA-03: Hierarchische Spot-Strukturen (Sub-Perspektiven)
+- Zuordnung mehrerer spezifischer Blickwinkel zu einem übergeordneten Hauptspot mit geteilten Logistik- und Parkplatzdaten.
+
+#### IDEA-04: GPX-Track-Synchronisation & Auto-Geotagging für DSLMs
+- Automatischer Zeit- und Geodaten-Abgleich externer `.gpx`-Tracks mit Aufnahmezeitpunkten von Systemkameras.
+
+#### IDEA-05: Kamera-Uhr-Abgleich (Time-Sync Offset & Screen-Erkennung)
+- Manueller Zeitschieber und automatischer Foto-Offset-Abgleich bei asynchron laufenden Kamerauhren.
+
+#### IDEA-06: Erweiterte Wetter- & Astro-Daten (Apple WeatherKit)
+- Live-Wetter, Wolkenbedeckung, Mondphasen und astronomische Dämmerung für die exakte Vor-Ort-Planung.
+
