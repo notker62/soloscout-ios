@@ -24,41 +24,65 @@ struct SoloScoutApp: App {
         GearItem.self
     ])
     
-    /// Resilient ModelContainer factory with graceful fallback and optional iCloud sync
+    /// Resilient ModelContainer factory with guaranteed SSD persistence and optional CloudKit sync
     static func createModelContainer(inMemory: Bool = false, enableCloudKit: Bool = false) -> ModelContainer {
-        let configuration: ModelConfiguration
         if inMemory {
-            configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-        } else if enableCloudKit {
-            configuration = ModelConfiguration(
-                schema: schema,
-                isStoredInMemoryOnly: false,
-                cloudKitDatabase: .private("iCloud.de.nstconsult.SoloScout")
-            )
-        } else {
-            configuration = ModelConfiguration(
-                schema: schema,
-                isStoredInMemoryOnly: false,
-                cloudKitDatabase: .none
-            )
+            let memoryConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            if let container = try? ModelContainer(for: schema, configurations: [memoryConfig]) {
+                CatalogSeedingService.seedDefaultsIfNeeded(context: container.mainContext)
+                return container
+            }
         }
         
+        // 1. Try persistent container with CloudKit if enabled
+        if enableCloudKit {
+            let cloudConfig = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: false,
+                cloudKitDatabase: .automatic
+            )
+            if let container = try? ModelContainer(for: schema, configurations: [cloudConfig]) {
+                print("✅ [SoloScoutApp] Initialized persistent ModelContainer with CloudKit sync.")
+                CatalogSeedingService.seedDefaultsIfNeeded(context: container.mainContext)
+                return container
+            } else {
+                print("⚠️ [SoloScoutApp] CloudKit container init failed (no active CloudKit entitlement). Falling back to persistent local SSD store.")
+            }
+        }
+        
+        // 2. Persistent container locally (SSD SQLite database)
+        let localConfig = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            cloudKitDatabase: .none
+        )
+        
         do {
-            let container = try ModelContainer(for: schema, configurations: [configuration])
+            let container = try ModelContainer(for: schema, configurations: [localConfig])
+            print("✅ [SoloScoutApp] Initialized persistent local SSD ModelContainer.")
             CatalogSeedingService.seedDefaultsIfNeeded(context: container.mainContext)
             return container
         } catch {
-            print("⚠️ [SoloScoutApp] Persistent ModelContainer initialization failed: \(error.localizedDescription)")
-            print("🔄 [SoloScoutApp] Attempting fallback to isolated in-memory container to prevent app crash...")
+            print("⚠️ [SoloScoutApp] Local ModelContainer load failed with error: \(error). Performing clean store reset to preserve SSD persistence...")
             
-            let fallbackConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            // Re-create a clean persistent store file
+            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            if let storeURL = appSupport?.appendingPathComponent("default.store") {
+                try? FileManager.default.removeItem(at: storeURL)
+                let shmURL = appSupport?.appendingPathComponent("default.store-shm")
+                let walURL = appSupport?.appendingPathComponent("default.store-wal")
+                if let shmURL = shmURL { try? FileManager.default.removeItem(at: shmURL) }
+                if let walURL = walURL { try? FileManager.default.removeItem(at: walURL) }
+            }
+            
             do {
-                let fallbackContainer = try ModelContainer(for: schema, configurations: [fallbackConfig])
-                CatalogSeedingService.seedDefaultsIfNeeded(context: fallbackContainer.mainContext)
-                return fallbackContainer
+                let freshContainer = try ModelContainer(for: schema, configurations: [localConfig])
+                print("✅ [SoloScoutApp] Re-created clean persistent local SSD ModelContainer.")
+                CatalogSeedingService.seedDefaultsIfNeeded(context: freshContainer.mainContext)
+                return freshContainer
             } catch {
-                print("❌ [SoloScoutApp] Fallback container failed: \(error.localizedDescription)")
-                fatalError("Fatal: Critical SwiftData engine failure: \(error.localizedDescription)")
+                print("❌ [SoloScoutApp] Critical failure: \(error.localizedDescription)")
+                fatalError("Fatal: SwiftData database initialization failed: \(error.localizedDescription)")
             }
         }
     }

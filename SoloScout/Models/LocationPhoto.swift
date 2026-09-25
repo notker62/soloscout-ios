@@ -12,10 +12,10 @@ import SwiftData
 
 @Model
 public final class LocationPhoto {
-    @Attribute(.unique) public var id: UUID
+    public var id: UUID = UUID()
     public var photoAssetIdentifier: String? // System reference to iOS PHAsset
     public var thumbnailData: Data? // Local Cache thumbnail data
-    public var captureDate: Date
+    public var captureDate: Date = Date()
     
     // Photo-specific GPS Coordinates (can drift slightly from parent spot)
     public var latitude: Double?

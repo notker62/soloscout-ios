@@ -12,10 +12,10 @@ import SwiftData
 
 @Model
 public final class TagItem {
-    @Attribute(.unique) public var id: UUID
-    public var name: String
-    public var isDefault: Bool
-    public var creationDate: Date
+    public var id: UUID = UUID()
+    public var name: String = ""
+    public var isDefault: Bool = false
+    public var creationDate: Date = Date()
     
     public init(name: String, isDefault: Bool = false) {
         self.id = UUID()

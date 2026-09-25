@@ -559,7 +559,7 @@ struct LocationCaptureView: View {
             }
             
             // Only add a new photo if a new one was actually picked or shot
-            if currentPHAsset != nil || cameraImage != nil {
+            if currentPHAsset != nil || cameraImage != nil || selectedImageThumbnail != nil {
                 let newPhoto = LocationPhoto()
                 newPhoto.thumbnailData = selectedImageThumbnail
                 newPhoto.focalLengthEquivalent = extractedFocalLength
@@ -567,6 +567,7 @@ struct LocationCaptureView: View {
                 newPhoto.aperture = extractedAperture
                 newPhoto.latitude = latVal
                 newPhoto.longitude = lonVal
+                newPhoto.location = loc
                 
                 if let asset = currentPHAsset {
                      newPhoto.photoAssetIdentifier = asset.localIdentifier
@@ -578,6 +579,7 @@ struct LocationCaptureView: View {
                          }
                      }
                 }
+                modelContext.insert(newPhoto)
                 loc.photos.append(newPhoto)
             }
             
@@ -600,27 +602,32 @@ struct LocationCaptureView: View {
                 newLocation.parkingLongitude = pLon
             }
             
-            let newPhoto = LocationPhoto()
-            newPhoto.thumbnailData = selectedImageThumbnail
-            newPhoto.focalLengthEquivalent = extractedFocalLength
-            newPhoto.originalLensModel = extractedLensModel
-            newPhoto.aperture = extractedAperture
-            newPhoto.latitude = latVal
-            newPhoto.longitude = lonVal
+            modelContext.insert(newLocation)
             
-            if let asset = currentPHAsset {
-                newPhoto.photoAssetIdentifier = asset.localIdentifier
-                addPhotoToSystemAlbum(asset: asset)
-            } else if let uiImage = cameraImage {
-                saveImageToPhotosLibrary(image: uiImage) { identifier in
-                    if let identifier = identifier {
-                        newPhoto.photoAssetIdentifier = identifier
+            if selectedImageThumbnail != nil || cameraImage != nil || currentPHAsset != nil {
+                let newPhoto = LocationPhoto()
+                newPhoto.thumbnailData = selectedImageThumbnail
+                newPhoto.focalLengthEquivalent = extractedFocalLength
+                newPhoto.originalLensModel = extractedLensModel
+                newPhoto.aperture = extractedAperture
+                newPhoto.latitude = latVal
+                newPhoto.longitude = lonVal
+                newPhoto.location = newLocation
+                
+                if let asset = currentPHAsset {
+                    newPhoto.photoAssetIdentifier = asset.localIdentifier
+                    addPhotoToSystemAlbum(asset: asset)
+                } else if let uiImage = cameraImage {
+                    saveImageToPhotosLibrary(image: uiImage) { identifier in
+                        if let identifier = identifier {
+                            newPhoto.photoAssetIdentifier = identifier
+                        }
                     }
                 }
+                
+                modelContext.insert(newPhoto)
+                newLocation.photos.append(newPhoto)
             }
-            
-            newLocation.photos.append(newPhoto)
-            modelContext.insert(newLocation)
             
             try? modelContext.save()
             dismiss()

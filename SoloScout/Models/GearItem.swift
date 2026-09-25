@@ -12,12 +12,12 @@ import SwiftData
 
 @Model
 public final class GearItem {
-    @Attribute(.unique) public var id: UUID
-    public var name: String
-    public var categoryRaw: String
-    public var isFavorite: Bool
-    public var isDefault: Bool
-    public var creationDate: Date
+    public var id: UUID = UUID()
+    public var name: String = ""
+    public var categoryRaw: String = "tripodAccessory"
+    public var isFavorite: Bool = false
+    public var isDefault: Bool = false
+    public var creationDate: Date = Date()
     
     public init(name: String, categoryRaw: String = "tripodAccessory", isFavorite: Bool = false, isDefault: Bool = false) {
         self.id = UUID()
